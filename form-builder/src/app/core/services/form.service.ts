@@ -278,7 +278,7 @@ export class FormService {
         const metadata: any = {};
         if (form?.settings?.cademiEnabled) {
             metadata.codigo = Date.now().toString();
-            metadata.status = 'aprovado'; // Forçando aprovado para segurança
+            metadata.status = form.settings.cademiStatus || 'aprovado';
             metadata.produto_id = form.settings.cademiProductId;
             metadata.produto_nome = form.settings.cademiProductName;
             metadata.cliente_nome = clientName || 'Cliente';
