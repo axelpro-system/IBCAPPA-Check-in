@@ -26,6 +26,7 @@ export interface FormSettings {
     cademiProductId?: string;
     cademiProductName?: string;
     cademiToken?: string;
+    cademiStatus?: 'aprovado' | 'concluido';
     // Personalização Visual
     backgroundImageUrl?: string;
     backgroundOpacity?: number;

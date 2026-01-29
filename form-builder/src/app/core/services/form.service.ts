@@ -278,7 +278,7 @@ export class FormService {
         const metadata: any = {};
         if (form?.settings?.cademiEnabled) {
             metadata.codigo = Date.now().toString();
-            metadata.status = 'aprovado';
+            metadata.status = form.settings.cademiStatus || 'aprovado';
             metadata.produto_id = form.settings.cademiProductId;
             metadata.produto_nome = form.settings.cademiProductName;
             metadata.cliente_nome = clientName || 'Cliente';
@@ -319,7 +319,8 @@ export class FormService {
                 productName: metadata.produto_nome,
                 clientName: metadata.cliente_nome,
                 clientEmail: clientEmail,
-                submissionId: submissionData.id
+                submissionId: submissionData.id,
+                status: metadata.status
             };
 
             this.supabase.client.functions.invoke('cademi-webhook', {

@@ -143,14 +143,23 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">ID do Produto</label>
-                  <input type="text" 
-                         class="form-input" 
-                         [(ngModel)]="formData.settings.cademiProductId"
-                         placeholder="Ex: 123">
-                </div>
+                  <label class="form-label">ID do Produto (Cademí)</label>
+                <input type="text" 
+                       class="form-input" 
+                       [(ngModel)]="formData.settings.cademiProductId"
+                       placeholder="Ex: 171440">
+              </div>
 
-                <div class="form-group">
+              <div class="form-group">
+                <label class="form-label">Ação ao Enviar</label>
+                <select class="form-select" [(ngModel)]="formData.settings.cademiStatus">
+                  <option value="aprovado">Liberar Acesso ao Curso</option>
+                  <option value="concluido">Emitir Certificado Diretamente</option>
+                </select>
+                <p class="form-help">"Emitir Certificado" marca o produto como concluído na Cademí.</p>
+              </div>
+
+              <div class="form-group">
                   <label class="form-label">Nome do Produto</label>
                   <input type="text" 
                          class="form-input" 
@@ -521,6 +530,7 @@ export class FormEditorComponent implements OnInit {
       cademiProductId: '',
       cademiProductName: '',
       cademiToken: '',
+      cademiStatus: 'aprovado' as 'aprovado' | 'concluido',
       backgroundImageUrl: '',
       backgroundOpacity: 100
     }
@@ -581,6 +591,7 @@ export class FormEditorComponent implements OnInit {
             cademiProductId: this.form.settings?.cademiProductId || '',
             cademiProductName: this.form.settings?.cademiProductName || '',
             cademiToken: this.form.settings?.cademiToken || '',
+            cademiStatus: this.form.settings?.cademiStatus || 'aprovado',
             backgroundImageUrl: this.form.settings?.backgroundImageUrl || '',
             backgroundOpacity: this.form.settings?.backgroundOpacity !== undefined ? this.form.settings.backgroundOpacity : 100
           }

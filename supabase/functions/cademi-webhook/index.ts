@@ -24,21 +24,21 @@ serve(async (req) => {
         const cademiUrl = "https://membros.cademi.com.br/api/postback"
 
         // Montar os dados conforme solicitado: codigo,status,produto_id,produto_nome,cliente_nome,cliente_email
-        // Usamos timestamp puramente numérico para evitar rejeição de formato
-        const transactionCode = Date.now().toString()
+        // Usamos o submissionId como código único da transação
+        const transactionCode = submissionId || Date.now().toString()
 
         const body = new URLSearchParams()
         body.append('token', token)
         body.append('codigo', transactionCode)
-        body.append('status', 'aprovado') // 'aprovado' é o status mais comum para liberar automações
+        body.append('status', 'aprovado')
         body.append('produto_id', productId)
         body.append('produto_nome', productName)
         body.append('cliente_nome', clientName)
         body.append('cliente_email', clientEmail)
-        body.append('email', clientEmail) // Payload duplicado para garantir compatibilidade
+        body.append('email', clientEmail)
 
         const bodyString = body.toString()
-        console.log(`[Cademi] Enviando request: ${bodyString.replace(token, 'REDACTED')}`)
+        console.log(`[Cademi] Enviando postback para ${clientEmail} - Produto: ${productId} - Codigo: ${transactionCode}`)
 
         const response = await fetch(cademiUrl, {
             method: 'POST',
