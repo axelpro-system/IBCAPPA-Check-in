@@ -1,11 +1,11 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+// @ts-ignore
+Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
@@ -17,7 +17,8 @@ serve(async (req) => {
             productName,
             clientName,
             clientEmail,
-            submissionId
+            submissionId,
+            status
         } = await req.json()
 
         // Endpoint padrão da Cademí para postback
@@ -30,7 +31,7 @@ serve(async (req) => {
         const body = new URLSearchParams()
         body.append('token', token)
         body.append('codigo', transactionCode)
-        body.append('status', 'aprovado')
+        body.append('status', status || 'aprovado')
         body.append('produto_id', productId)
         body.append('produto_nome', productName)
         body.append('cliente_nome', clientName)
@@ -61,8 +62,9 @@ serve(async (req) => {
         })
 
     } catch (error) {
-        console.error('[Cademi] Erro:', error.message)
-        return new Response(JSON.stringify({ error: error.message }), {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('[Cademi] Erro:', errorMessage)
+        return new Response(JSON.stringify({ error: errorMessage }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400,
         })
