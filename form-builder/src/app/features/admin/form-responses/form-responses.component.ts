@@ -254,9 +254,9 @@ export class FormResponsesComponent implements OnInit {
 
       const extraValues = [
         metadata['codigo'] || '',
-        metadata['status'] || (this.form?.settings?.cademiEnabled ? 'aprovado' : ''),
-        metadata['produto_id'] || (this.form?.settings?.cademiEnabled ? this.form?.settings?.cademiProductId : ''),
-        metadata['produto_nome'] || (this.form?.settings?.cademiEnabled ? this.form?.settings?.cademiProductName : ''),
+        metadata['status'] || '',
+        metadata['produto_id'] || '',
+        metadata['produto_nome'] || '',
         clienteNome || ''
       ];
 
