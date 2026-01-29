@@ -26,6 +26,9 @@ export interface FormSettings {
     cademiProductId?: string;
     cademiProductName?: string;
     cademiToken?: string;
+    // Personalização Visual
+    backgroundImageUrl?: string;
+    backgroundOpacity?: number;
 }
 
 export interface FormField {

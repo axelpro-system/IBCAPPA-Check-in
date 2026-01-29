@@ -94,6 +94,30 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
               </select>
             </div>
 
+            <div class="visual-settings">
+              <h3>Personalização Visual</h3>
+              
+              <div class="form-group">
+                <label class="form-label">URL da Imagem de Fundo</label>
+                <input type="text" 
+                       class="form-input" 
+                       [(ngModel)]="formData.settings.backgroundImageUrl"
+                       placeholder="https://exemplo.com/imagem.jpg">
+                <p class="form-help">Use uma imagem de alta resolução.</p>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Opacidade do Fundo (0-100)</label>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <input type="range" 
+                         min="0" max="100" 
+                         style="flex: 1;"
+                         [(ngModel)]="formData.settings.backgroundOpacity">
+                  <span style="min-width: 40px;">{{ formData.settings.backgroundOpacity }}%</span>
+                </div>
+              </div>
+            </div>
+
             <hr style="margin: var(--spacing-6) 0; border: none; border-top: 1px solid var(--color-gray-200);">
             
             <div class="cademi-settings">
@@ -496,7 +520,9 @@ export class FormEditorComponent implements OnInit {
       cademiEnabled: false,
       cademiProductId: '',
       cademiProductName: '',
-      cademiToken: ''
+      cademiToken: '',
+      backgroundImageUrl: '',
+      backgroundOpacity: 100
     }
   };
 
@@ -554,7 +580,9 @@ export class FormEditorComponent implements OnInit {
             cademiEnabled: this.form.settings?.cademiEnabled || false,
             cademiProductId: this.form.settings?.cademiProductId || '',
             cademiProductName: this.form.settings?.cademiProductName || '',
-            cademiToken: this.form.settings?.cademiToken || ''
+            cademiToken: this.form.settings?.cademiToken || '',
+            backgroundImageUrl: this.form.settings?.backgroundImageUrl || '',
+            backgroundOpacity: this.form.settings?.backgroundOpacity !== undefined ? this.form.settings.backgroundOpacity : 100
           }
         };
 

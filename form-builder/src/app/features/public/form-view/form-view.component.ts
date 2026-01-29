@@ -26,7 +26,15 @@ import { Form, FormField } from '../../../core/models/form.model';
     </div>
 
     <!-- Form -->
-    <div *ngIf="!loading && form" class="form-page">
+    <div *ngIf="!loading && form" 
+         class="form-page" 
+         [style.background-image]="form.settings.backgroundImageUrl ? 'url(' + form.settings.backgroundImageUrl + ')' : ''">
+      
+      <!-- Background Overlay (for opacity/contrast) -->
+      <div *ngIf="form.settings.backgroundImageUrl" 
+           class="form-overlay" 
+           [style.opacity]="1 - ((form.settings.backgroundOpacity ?? 100) / 100)"></div>
+
       <div class="form-container">
         <!-- Header -->
         <header class="form-header">
@@ -248,6 +256,20 @@ import { Form, FormField } from '../../../core/models/form.model';
       min-height: 100vh;
       background-color: var(--color-gray-50);
       padding: var(--spacing-8) var(--spacing-4);
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      position: relative;
+    }
+
+    .form-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--color-gray-50);
+      z-index: 1;
     }
     
     .form-container {
@@ -257,6 +279,8 @@ import { Form, FormField } from '../../../core/models/form.model';
       border-radius: var(--border-radius-lg);
       box-shadow: var(--shadow-md);
       padding: var(--spacing-8);
+      position: relative;
+      z-index: 2;
     }
     
     .form-header {
