@@ -1,0 +1,11 @@
+{
+    "buildCommand": "cd form-builder && npm install && npm run build",
+    "outputDirectory": "form-builder/dist/form-builder/browser",
+    "framework": "angular",
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ]
+}
