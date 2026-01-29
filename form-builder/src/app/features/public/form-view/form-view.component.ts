@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -7,10 +7,10 @@ import { ValidationService } from '../../../core/services/validation.service';
 import { Form, FormField } from '../../../core/models/form.model';
 
 @Component({
-    selector: 'app-form-view',
-    standalone: true,
-    imports: [CommonModule, FormsModule],
-    template: `
+  selector: 'app-form-view',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
     <!-- Loading -->
     <div *ngIf="loading" class="loading-page">
       <div class="spinner spinner-lg"></div>
@@ -218,7 +218,7 @@ import { Form, FormField } from '../../../core/models/form.model';
       </div>
     </div>
   `,
-    styles: [`
+  styles: [`
     .loading-page,
     .error-page {
       min-height: 100vh;
@@ -326,218 +326,233 @@ import { Form, FormField } from '../../../core/models/form.model';
   `]
 })
 export class FormViewComponent implements OnInit {
-    loading = true;
-    submitting = false;
+  loading = true;
+  submitting = false;
 
-    form: Form | null = null;
-    fields: FormField[] = [];
-    values: Record<string, string> = {};
-    errors: Record<string, string> = {};
+  form: Form | null = null;
+  fields: FormField[] = [];
+  values: Record<string, string> = {};
+  errors: Record<string, string> = {};
 
-    constructor(
-        private route: ActivatedRoute,
-        private router: Router,
-        private formService: FormService,
-        private validationService: ValidationService
-    ) { }
+  constructor(
+    private route: ActivatedRoute,
+    private router: Router,
+    private formService: FormService,
+    private validationService: ValidationService,
+    private cdr: ChangeDetectorRef
+  ) { }
 
-    async ngOnInit() {
-        const slug = this.route.snapshot.paramMap.get('slug');
+  async ngOnInit() {
+    const slug = this.route.snapshot.paramMap.get('slug');
 
-        if (slug) {
-            await this.loadForm(slug);
-        } else {
-            this.loading = false;
-        }
+    if (slug) {
+      await this.loadForm(slug);
+    } else {
+      this.loading = false;
+      this.cdr.detectChanges();
     }
+  }
 
-    async loadForm(slug: string) {
-        try {
-            this.loading = true;
-            this.form = await this.formService.getFormBySlug(slug);
+  async loadForm(slug: string) {
+    try {
+      this.loading = true;
+      this.cdr.detectChanges();
 
-            if (this.form) {
-                this.fields = await this.formService.getFormFields(this.form.id);
+      this.form = await this.formService.getFormBySlug(slug);
 
-                // Inicializar valores
-                this.fields.forEach(field => {
-                    this.values[field.id] = '';
-                });
-            }
-        } catch (error) {
-            console.error('Erro ao carregar formulário:', error);
-            this.form = null;
-        } finally {
-            this.loading = false;
-        }
-    }
+      if (this.form) {
+        this.fields = await this.formService.getFormFields(this.form.id);
 
-    validateField(field: FormField): boolean {
-        const value = this.values[field.id]?.trim() || '';
-
-        // Campo obrigatório
-        if (field.required && !value) {
-            this.errors[field.id] = 'Este campo é obrigatório';
-            return false;
-        }
-
-        if (!value) {
-            delete this.errors[field.id];
-            return true;
-        }
-
-        // Validações específicas
-        switch (field.field_type) {
-            case 'email':
-                if (!this.validationService.validateEmail(value)) {
-                    this.errors[field.id] = 'Informe um e-mail válido';
-                    return false;
-                }
-                break;
-
-            case 'cpf':
-                if (!this.validationService.validateCPF(value)) {
-                    this.errors[field.id] = 'CPF inválido';
-                    return false;
-                }
-                break;
-
-            case 'cnpj':
-                if (!this.validationService.validateCNPJ(value)) {
-                    this.errors[field.id] = 'CNPJ inválido';
-                    return false;
-                }
-                break;
-
-            case 'phone':
-                if (!this.validationService.validatePhone(value)) {
-                    this.errors[field.id] = 'Telefone inválido';
-                    return false;
-                }
-                break;
-        }
-
-        // Validação de nome (se label contiver "nome")
-        if (field.field_type === 'text' && field.label.toLowerCase().includes('nome')) {
-            const nameValidation = this.validationService.validateName(value);
-            if (!nameValidation.valid) {
-                this.errors[field.id] = nameValidation.message || 'Nome inválido';
-                return false;
-            }
-        }
-
-        delete this.errors[field.id];
-        return true;
-    }
-
-    formatCPF(fieldId: string) {
-        let value = this.values[fieldId].replace(/\D/g, '');
-        if (value.length > 11) value = value.substring(0, 11);
-
-        if (value.length > 9) {
-            value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-        } else if (value.length > 6) {
-            value = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-        } else if (value.length > 3) {
-            value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
-        }
-
-        this.values[fieldId] = value;
-    }
-
-    formatCNPJ(fieldId: string) {
-        let value = this.values[fieldId].replace(/\D/g, '');
-        if (value.length > 14) value = value.substring(0, 14);
-
-        if (value.length > 12) {
-            value = value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
-        } else if (value.length > 8) {
-            value = value.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4');
-        } else if (value.length > 5) {
-            value = value.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3');
-        } else if (value.length > 2) {
-            value = value.replace(/(\d{2})(\d{1,3})/, '$1.$2');
-        }
-
-        this.values[fieldId] = value;
-    }
-
-    formatPhone(fieldId: string) {
-        let value = this.values[fieldId].replace(/\D/g, '');
-        if (value.length > 11) value = value.substring(0, 11);
-
-        if (value.length > 10) {
-            value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-        } else if (value.length > 6) {
-            value = value.replace(/(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
-        } else if (value.length > 2) {
-            value = value.replace(/(\d{2})(\d{0,5})/, '($1) $2');
-        }
-
-        this.values[fieldId] = value;
-    }
-
-    formatCurrency(fieldId: string) {
-        let value = this.values[fieldId].replace(/\D/g, '');
-        if (!value) {
-            this.values[fieldId] = '';
-            return;
-        }
-
-        const numValue = parseInt(value) / 100;
-        this.values[fieldId] = numValue.toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
+        // Inicializar valores
+        this.fields.forEach(field => {
+          this.values[field.id] = '';
         });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar formulário:', error);
+      this.form = null;
+    } finally {
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  validateField(field: FormField): boolean {
+    const rawValue = this.values[field.id];
+    const value = (rawValue !== undefined && rawValue !== null) ? String(rawValue).trim() : '';
+
+    // Campo obrigatório
+    if (field.required && !value) {
+      this.errors[field.id] = 'Este campo é obrigatório';
+      return false;
     }
 
-    toggleCheckbox(fieldId: string, optionValue: string, event: Event) {
-        const checked = (event.target as HTMLInputElement).checked;
-        let currentValues = this.values[fieldId] ? this.values[fieldId].split(',') : [];
-
-        if (checked) {
-            currentValues.push(optionValue);
-        } else {
-            currentValues = currentValues.filter(v => v !== optionValue);
-        }
-
-        this.values[fieldId] = currentValues.join(',');
+    if (!value) {
+      delete this.errors[field.id];
+      return true;
     }
 
-    async submitForm() {
-        // Validar todos os campos
-        let hasErrors = false;
-
-        for (const field of this.fields) {
-            if (!this.validateField(field)) {
-                hasErrors = true;
-            }
+    // Validações específicas
+    switch (field.field_type) {
+      case 'email':
+        if (!this.validationService.validateEmail(value)) {
+          this.errors[field.id] = 'Informe um e-mail válido';
+          return false;
         }
+        break;
 
-        if (hasErrors) {
-            // Scroll para o primeiro erro
-            const firstErrorField = this.fields.find(f => this.errors[f.id]);
-            if (firstErrorField) {
-                document.getElementById(firstErrorField.id)?.focus();
-            }
-            return;
+      case 'cpf':
+        if (!this.validationService.validateCPF(value)) {
+          this.errors[field.id] = 'CPF inválido';
+          return false;
         }
+        break;
 
-        try {
-            this.submitting = true;
-
-            await this.formService.submitForm({
-                form_id: this.form!.id,
-                values: this.values
-            });
-
-            // Redirecionar para página de sucesso
-            this.router.navigate(['/f', this.form!.slug, 'success']);
-        } catch (error) {
-            console.error('Erro ao enviar formulário:', error);
-            alert('Erro ao enviar formulário. Tente novamente.');
-        } finally {
-            this.submitting = false;
+      case 'cnpj':
+        if (!this.validationService.validateCNPJ(value)) {
+          this.errors[field.id] = 'CNPJ inválido';
+          return false;
         }
+        break;
+
+      case 'phone':
+        if (!this.validationService.validatePhone(value)) {
+          this.errors[field.id] = 'Telefone inválido';
+          return false;
+        }
+        break;
     }
+
+    // Validação de nome (se label contiver "nome")
+    if (field.field_type === 'text' && field.label.toLowerCase().includes('nome')) {
+      const nameValidation = this.validationService.validateName(value);
+      if (!nameValidation.valid) {
+        this.errors[field.id] = nameValidation.message || 'Nome inválido';
+        return false;
+      }
+    }
+
+    delete this.errors[field.id];
+    return true;
+  }
+
+  formatCPF(fieldId: string) {
+    const rawValue = this.values[fieldId];
+    if (rawValue === undefined || rawValue === null) return;
+    let value = String(rawValue).replace(/\D/g, '');
+    if (value.length > 11) value = value.substring(0, 11);
+
+    if (value.length > 9) {
+      value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    } else if (value.length > 6) {
+      value = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    } else if (value.length > 3) {
+      value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    }
+
+    this.values[fieldId] = value;
+  }
+
+  formatCNPJ(fieldId: string) {
+    const rawValue = this.values[fieldId];
+    if (rawValue === undefined || rawValue === null) return;
+    let value = String(rawValue).replace(/\D/g, '');
+    if (value.length > 14) value = value.substring(0, 14);
+
+    if (value.length > 12) {
+      value = value.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+    } else if (value.length > 8) {
+      value = value.replace(/(\d{2})(\d{3})(\d{3})(\d{1,4})/, '$1.$2.$3/$4');
+    } else if (value.length > 5) {
+      value = value.replace(/(\d{2})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    } else if (value.length > 2) {
+      value = value.replace(/(\d{2})(\d{1,3})/, '$1.$2');
+    }
+
+    this.values[fieldId] = value;
+  }
+
+  formatPhone(fieldId: string) {
+    const rawValue = this.values[fieldId];
+    if (rawValue === undefined || rawValue === null) return;
+    let value = String(rawValue).replace(/\D/g, '');
+    if (value.length > 11) value = value.substring(0, 11);
+
+    if (value.length > 10) {
+      value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    } else if (value.length > 6) {
+      value = value.replace(/(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+    } else if (value.length > 2) {
+      value = value.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+    }
+
+    this.values[fieldId] = value;
+  }
+
+  formatCurrency(fieldId: string) {
+    const rawValue = this.values[fieldId];
+    if (rawValue === undefined || rawValue === null) return;
+    let value = String(rawValue).replace(/\D/g, '');
+    if (!value) {
+      this.values[fieldId] = '';
+      return;
+    }
+
+    const numValue = parseInt(value) / 100;
+    this.values[fieldId] = numValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  toggleCheckbox(fieldId: string, optionValue: string, event: Event) {
+    const checked = (event.target as HTMLInputElement).checked;
+    const rawValue = this.values[fieldId];
+    let currentValues = (rawValue && typeof rawValue === 'string') ? rawValue.split(',') : [];
+
+    if (checked) {
+      currentValues.push(optionValue);
+    } else {
+      currentValues = currentValues.filter(v => v !== optionValue);
+    }
+
+    this.values[fieldId] = currentValues.join(',');
+  }
+
+  async submitForm() {
+    // Validar todos os campos
+    let hasErrors = false;
+
+    for (const field of this.fields) {
+      if (!this.validateField(field)) {
+        hasErrors = true;
+      }
+    }
+
+    if (hasErrors) {
+      // Scroll para o primeiro erro
+      const firstErrorField = this.fields.find(f => this.errors[f.id]);
+      if (firstErrorField) {
+        document.getElementById(firstErrorField.id)?.focus();
+      }
+      return;
+    }
+
+    try {
+      this.submitting = true;
+
+      await this.formService.submitForm({
+        form_id: this.form!.id,
+        values: this.values
+      });
+
+      // Redirecionar para página de sucesso
+      this.router.navigate(['/f', this.form!.slug, 'success']);
+    } catch (error) {
+      console.error('Erro ao enviar formulário:', error);
+      alert('Erro ao enviar formulário. Tente novamente.');
+    } finally {
+      this.submitting = false;
+    }
+  }
 }

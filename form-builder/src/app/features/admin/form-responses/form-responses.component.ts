@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormService } from '../../../core/services/form.service';
@@ -6,10 +6,10 @@ import { Form, FormField, SubmissionWithValues } from '../../../core/models/form
 import { ValidationService } from '../../../core/services/validation.service';
 
 @Component({
-    selector: 'app-form-responses',
-    standalone: true,
-    imports: [CommonModule, RouterModule],
-    template: `
+  selector: 'app-form-responses',
+  standalone: true,
+  imports: [CommonModule, RouterModule],
+  template: `
     <div class="page-header">
       <div>
         <a [routerLink]="['/admin/forms', formId]" class="back-link">
@@ -90,7 +90,7 @@ import { ValidationService } from '../../../core/services/validation.service';
       </div>
     </div>
   `,
-    styles: [`
+  styles: [`
     .page-header {
       display: flex;
       justify-content: space-between;
@@ -152,107 +152,138 @@ import { ValidationService } from '../../../core/services/validation.service';
   `]
 })
 export class FormResponsesComponent implements OnInit {
-    formId: string = '';
-    form: Form | null = null;
-    fields: FormField[] = [];
-    submissions: SubmissionWithValues[] = [];
-    loading = true;
+  formId: string = '';
+  form: Form | null = null;
+  fields: FormField[] = [];
+  submissions: SubmissionWithValues[] = [];
+  loading = true;
 
-    constructor(
-        private route: ActivatedRoute,
-        private formService: FormService,
-        private validationService: ValidationService
-    ) { }
+  constructor(
+    private route: ActivatedRoute,
+    private formService: FormService,
+    private validationService: ValidationService,
+    private cdr: ChangeDetectorRef
+  ) { }
 
-    async ngOnInit() {
-        this.formId = this.route.snapshot.paramMap.get('id') || '';
+  async ngOnInit() {
+    this.formId = this.route.snapshot.paramMap.get('id') || '';
 
-        if (this.formId) {
-            await this.loadData();
+    if (this.formId) {
+      await this.loadData();
+    }
+  }
+
+  async loadData() {
+    try {
+      this.loading = true;
+      this.cdr.detectChanges();
+
+      // Carregar formulário e campos
+      this.form = await this.formService.getFormById(this.formId);
+      this.fields = await this.formService.getFormFields(this.formId);
+
+      // Carregar submissões
+      this.submissions = await this.formService.getFormSubmissions(this.formId);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+    } finally {
+      this.loading = false;
+      this.cdr.detectChanges();
+    }
+  }
+
+  formatDateTime(date: string): string {
+    return this.validationService.formatDateTime(date);
+  }
+
+  formatValue(value: string | undefined, fieldType: string): string {
+    if (!value) return '-';
+
+    switch (fieldType) {
+      case 'cpf':
+        return this.validationService.formatCPF(value);
+      case 'cnpj':
+        return this.validationService.formatCNPJ(value);
+      case 'phone':
+        return this.validationService.formatPhone(value);
+      case 'currency':
+        return this.validationService.formatCurrency(value);
+      case 'date':
+        return this.validationService.formatDate(value);
+      default:
+        return value;
+    }
+  }
+
+  async deleteSubmission(submission: SubmissionWithValues) {
+    if (!confirm('Excluir esta resposta? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      await this.formService.deleteSubmission(submission.id);
+      this.submissions = this.submissions.filter(s => s.id !== submission.id);
+    } catch (error) {
+      console.error('Erro ao excluir resposta:', error);
+      alert('Erro ao excluir resposta. Tente novamente.');
+    }
+  }
+
+  exportCSV() {
+    if (this.submissions.length === 0 || this.fields.length === 0) return;
+
+    // Criar cabeçalho
+    const extraHeaders = ['codigo', 'status', 'produto_id', 'produto_nome', 'cliente_nome'];
+    const headers = [...extraHeaders, 'Data', ...this.fields.map(f => f.label)];
+
+    // Criar linhas
+    const rows = this.submissions.map(submission => {
+      const date = this.formatDateTime(submission.submitted_at);
+
+      // Valores dos metadados (Integração Cademí)
+      const metadata = submission.metadata || {};
+
+      // Fallback para cliente_nome em submissões antigas
+      let clienteNome = metadata['cliente_nome'];
+      if (!clienteNome) {
+        const nomeField = this.fields.find(f => f.label.toLowerCase().includes('nome'));
+        if (nomeField) {
+          clienteNome = submission.values[nomeField.id] || '';
         }
-    }
+      }
 
-    async loadData() {
-        try {
-            this.loading = true;
+      const extraValues = [
+        metadata['codigo'] || '',
+        metadata['status'] || (this.form?.settings?.cademiEnabled ? 'aprovado' : ''),
+        metadata['produto_id'] || (this.form?.settings?.cademiEnabled ? this.form?.settings?.cademiProductId : ''),
+        metadata['produto_nome'] || (this.form?.settings?.cademiEnabled ? this.form?.settings?.cademiProductName : ''),
+        clienteNome || ''
+      ];
 
-            // Carregar formulário e campos
-            this.form = await this.formService.getFormById(this.formId);
-            this.fields = await this.formService.getFormFields(this.formId);
+      // Valores dos campos dinâmicos
+      const fieldValues = this.fields.map(field => {
+        const value = submission.values[field.id] || '';
+        return this.formatValue(value, field.field_type);
+      });
 
-            // Carregar submissões
-            this.submissions = await this.formService.getFormSubmissions(this.formId);
-        } catch (error) {
-            console.error('Erro ao carregar dados:', error);
-        } finally {
-            this.loading = false;
-        }
-    }
+      return [...extraValues, date, ...fieldValues];
+    });
 
-    formatDateTime(date: string): string {
-        return this.validationService.formatDateTime(date);
-    }
+    // Converter para CSV (usando ponto e vírgula como separador comum para Excel)
+    const csvContent = [
+      headers.join(';'),
+      ...rows.map(row => row.map(cell => {
+        // Escapar aspas duplas e garantir string
+        const cellStr = cell ? String(cell).replace(/"/g, '""') : '';
+        return `"${cellStr}"`;
+      }).join(';'))
+    ].join('\n');
 
-    formatValue(value: string | undefined, fieldType: string): string {
-        if (!value) return '-';
-
-        switch (fieldType) {
-            case 'cpf':
-                return this.validationService.formatCPF(value);
-            case 'cnpj':
-                return this.validationService.formatCNPJ(value);
-            case 'phone':
-                return this.validationService.formatPhone(value);
-            case 'currency':
-                return this.validationService.formatCurrency(value);
-            case 'date':
-                return this.validationService.formatDate(value);
-            default:
-                return value;
-        }
-    }
-
-    async deleteSubmission(submission: SubmissionWithValues) {
-        if (!confirm('Excluir esta resposta? Esta ação não pode ser desfeita.')) {
-            return;
-        }
-
-        try {
-            await this.formService.deleteSubmission(submission.id);
-            this.submissions = this.submissions.filter(s => s.id !== submission.id);
-        } catch (error) {
-            console.error('Erro ao excluir resposta:', error);
-            alert('Erro ao excluir resposta. Tente novamente.');
-        }
-    }
-
-    exportCSV() {
-        if (this.submissions.length === 0 || this.fields.length === 0) return;
-
-        // Criar cabeçalho
-        const headers = ['Data', ...this.fields.map(f => f.label)];
-
-        // Criar linhas
-        const rows = this.submissions.map(submission => {
-            const date = this.formatDateTime(submission.submitted_at);
-            const values = this.fields.map(field => {
-                const value = submission.values[field.id] || '';
-                return this.formatValue(value, field.field_type);
-            });
-            return [date, ...values];
-        });
-
-        // Converter para CSV
-        const csvContent = [
-            headers.join(';'),
-            ...rows.map(row => row.map(cell => `"${cell}"`).join(';'))
-        ].join('\n');
-
-        // Criar e baixar arquivo
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${this.form?.slug || 'respostas'}_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-    }
+    // Criar e baixar arquivo
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${this.form?.slug || 'respostas'}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -92,6 +92,48 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                 <option value="published">Publicado</option>
                 <option value="archived">Arquivado</option>
               </select>
+            </div>
+
+            <hr style="margin: var(--spacing-6) 0; border: none; border-top: 1px solid var(--color-gray-200);">
+            
+            <div class="cademi-settings">
+              <h3>Integração Cademí</h3>
+              <p class="form-help" style="margin-bottom: var(--spacing-4);">
+                Ative para emitir certificados automaticamente após o preenchimento.
+              </p>
+
+              <div class="form-check" style="margin-bottom: var(--spacing-4);">
+                <input type="checkbox" 
+                       id="cademiEnabled" 
+                       [(ngModel)]="formData.settings.cademiEnabled">
+                <label for="cademiEnabled">Ativar Integração</label>
+              </div>
+
+              <div *ngIf="formData.settings.cademiEnabled">
+                <div class="form-group">
+                  <label class="form-label">Token Cademí</label>
+                  <input type="password" 
+                         class="form-input" 
+                         [(ngModel)]="formData.settings.cademiToken"
+                         placeholder="Seu Token de API">
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">ID do Produto</label>
+                  <input type="text" 
+                         class="form-input" 
+                         [(ngModel)]="formData.settings.cademiProductId"
+                         placeholder="Ex: 123">
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Nome do Produto</label>
+                  <input type="text" 
+                         class="form-input" 
+                         [(ngModel)]="formData.settings.cademiProductName"
+                         placeholder="Ex: Curso de Crédito Rural">
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -449,7 +491,13 @@ export class FormEditorComponent implements OnInit {
     title: '',
     description: '',
     slug: '',
-    status: 'draft' as 'draft' | 'published' | 'archived'
+    status: 'draft' as 'draft' | 'published' | 'archived',
+    settings: {
+      cademiEnabled: false,
+      cademiProductId: '',
+      cademiProductName: '',
+      cademiToken: ''
+    }
   };
 
   showAddField = false;
@@ -470,7 +518,8 @@ export class FormEditorComponent implements OnInit {
   constructor(
     private route: ActivatedRoute,
     public router: Router,
-    private formService: FormService
+    private formService: FormService,
+    private cdr: ChangeDetectorRef
   ) { }
 
   async ngOnInit() {
@@ -481,6 +530,7 @@ export class FormEditorComponent implements OnInit {
       await this.loadForm(id);
     } else {
       this.loading = false;
+      this.cdr.detectChanges();
     }
   }
 
@@ -488,6 +538,8 @@ export class FormEditorComponent implements OnInit {
     console.log('FormEditor: loadForm started', id);
     try {
       this.loading = true;
+      this.cdr.detectChanges();
+
       console.log('FormEditor: calling getFormById');
       this.form = await this.formService.getFormById(id);
       console.log('FormEditor: form loaded', this.form);
@@ -497,7 +549,13 @@ export class FormEditorComponent implements OnInit {
           title: this.form.title,
           description: this.form.description || '',
           slug: this.form.slug,
-          status: this.form.status
+          status: this.form.status,
+          settings: {
+            cademiEnabled: this.form.settings?.cademiEnabled || false,
+            cademiProductId: this.form.settings?.cademiProductId || '',
+            cademiProductName: this.form.settings?.cademiProductName || '',
+            cademiToken: this.form.settings?.cademiToken || ''
+          }
         };
 
         console.log('FormEditor: calling getFormFields');
@@ -510,6 +568,7 @@ export class FormEditorComponent implements OnInit {
       this.router.navigate(['/admin/forms']);
     } finally {
       this.loading = false;
+      this.cdr.detectChanges();
     }
   }
 

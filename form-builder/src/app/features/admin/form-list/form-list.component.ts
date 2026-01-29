@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormService } from '../../../core/services/form.service';
@@ -177,22 +177,56 @@ export class FormListComponent implements OnInit {
   forms: Form[] = [];
   loading = true;
 
-  constructor(private formService: FormService) { }
+  constructor(
+    private formService: FormService,
+    private cdr: ChangeDetectorRef
+  ) { }
 
   async ngOnInit() {
     await this.loadForms();
   }
 
   async loadForms() {
+    console.log('[FormList] Iniciando carregamento de formulários...');
     try {
       this.loading = true;
+      this.cdr.detectChanges();
+
+      const startTime = Date.now();
+
       this.forms = await this.formService.getForms();
-    } catch (error) {
-      console.error('Erro ao carregar formulários:', error);
+
+      const elapsed = Date.now() - startTime;
+      console.log(`[FormList] Carregamento concluído em ${elapsed}ms`);
+      console.log(`[FormList] Total de formulários: ${this.forms.length}`);
+
+      if (this.forms.length === 0) {
+        console.log('[FormList] Nenhum formulário encontrado - verifique se o usuário está autenticado e tem permissão RLS');
+      } else {
+        console.log('[FormList] Formulários:', this.forms.map(f => ({ id: f.id, title: f.title, status: f.status })));
+      }
+    } catch (error: any) {
+      console.error('[FormList] Erro ao carregar formulários:', error);
+      console.error('[FormList] Detalhes do erro:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
+
+      // Mostrar mensagem de erro ao usuário se for problema de autenticação
+      if (error?.message?.includes('JWT') || error?.message?.includes('auth') || error?.code === 'PGRST301') {
+        alert('Sua sessão expirou. Por favor, faça login novamente.');
+      }
     } finally {
       this.loading = false;
+      console.log('[FormList] Estado de loading:', this.loading);
+      // Forçar atualização da view
+      this.cdr.detectChanges();
+      console.log('[FormList] Change detection forçado');
     }
   }
+
 
   async deleteForm(form: Form) {
     if (!confirm(`Tem certeza que deseja excluir o formulário "${form.title}"?`)) {

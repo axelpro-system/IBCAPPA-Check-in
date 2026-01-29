@@ -23,13 +23,45 @@ export class FormService {
     // =============================================
 
     async getForms(): Promise<Form[]> {
-        const { data, error } = await this.supabase.client
-            .from('forms')
-            .select('*')
-            .order('created_at', { ascending: false });
+        console.log('[FormService] getForms - Iniciando carregamento...');
 
-        if (error) throw error;
-        return data || [];
+        try {
+            // Verificar autenticação primeiro
+            const user = await this.supabase.getCurrentUser();
+            console.log('[FormService] getForms - Usuário:', user?.email || 'NULO (não autenticado)');
+
+            if (!user) {
+                console.warn('[FormService] getForms - AVISO: Usuário não autenticado!');
+            }
+
+            const query = this.supabase.client
+                .from('forms')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            const timeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout: Supabase request took too long (5s)')), 5000)
+            );
+
+            console.log('[FormService] getForms - Executando query...');
+            const startTime = Date.now();
+
+            const { data, error } = await Promise.race([query, timeout]) as any;
+
+            const elapsed = Date.now() - startTime;
+            console.log(`[FormService] getForms - Query completada em ${elapsed}ms`);
+            console.log('[FormService] getForms - Resultados:', data?.length || 0, 'formulários');
+
+            if (error) {
+                console.error('[FormService] getForms - Erro:', error);
+                throw error;
+            }
+
+            return data || [];
+        } catch (error: any) {
+            console.error('[FormService] getForms - Exceção:', error.message);
+            throw error;
+        }
     }
 
     async getFormById(id: string): Promise<Form | null> {
@@ -54,15 +86,31 @@ export class FormService {
     }
 
     async getFormBySlug(slug: string): Promise<Form | null> {
-        const { data, error } = await this.supabase.client
-            .from('forms')
-            .select('*')
-            .eq('slug', slug)
-            .eq('status', 'published')
-            .maybeSingle();
+        console.log('[FormService] getFormBySlug - Iniciando busca por slug:', slug);
+        try {
+            const query = this.supabase.client
+                .from('forms')
+                .select('*')
+                .eq('slug', slug)
+                .eq('status', 'published')
+                .maybeSingle();
 
-        if (error) throw error;
-        return data;
+            const timeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout: Supabase query took too long (5s)')), 5000)
+            );
+
+            const { data, error } = await Promise.race([query, timeout]) as any;
+
+            console.log('[FormService] getFormBySlug - Resultado:', { data, error });
+            if (error) {
+                console.error('[FormService] getFormBySlug - Erro:', error);
+                throw error;
+            }
+            return data;
+        } catch (error) {
+            console.error('[FormService] getFormBySlug - Exceção:', error);
+            throw error;
+        }
     }
 
     async createForm(form: CreateFormDTO): Promise<Form> {
@@ -115,14 +163,30 @@ export class FormService {
     // =============================================
 
     async getFormFields(formId: string): Promise<FormField[]> {
-        const { data, error } = await this.supabase.client
-            .from('form_fields')
-            .select('*')
-            .eq('form_id', formId)
-            .order('field_order', { ascending: true });
+        console.log('[FormService] getFormFields - Iniciando busca por formId:', formId);
+        try {
+            const query = this.supabase.client
+                .from('form_fields')
+                .select('*')
+                .eq('form_id', formId)
+                .order('field_order', { ascending: true });
 
-        if (error) throw error;
-        return data || [];
+            const timeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout: Supabase query took too long (5s)')), 5000)
+            );
+
+            const { data, error } = await Promise.race([query, timeout]) as any;
+
+            console.log('[FormService] getFormFields - Resultado:', data?.length || 0, 'campos encontrados');
+            if (error) {
+                console.error('[FormService] getFormFields - Erro:', error);
+                throw error;
+            }
+            return data || [];
+        } catch (error) {
+            console.error('[FormService] getFormFields - Exceção:', error);
+            throw error;
+        }
     }
 
     async createField(field: CreateFieldDTO): Promise<FormField> {
@@ -189,11 +253,44 @@ export class FormService {
     // =============================================
 
     async submitForm(submission: SubmitFormDTO): Promise<FormSubmission> {
-        // Criar a submissão
+        // Buscar campos e configurações do formulário antecipadamente
+        const fields = await this.getFormFields(submission.form_id);
+        const { data: form } = await this.supabase.client
+            .from('forms')
+            .select('settings')
+            .eq('id', submission.form_id)
+            .single();
+
+        let clientEmail = '';
+        let clientName = '';
+
+        for (const field of fields) {
+            const value = submission.values[field.id];
+            if (!value) continue;
+
+            if (field.field_type === 'email') {
+                clientEmail = value;
+            } else if (field.label.toLowerCase().includes('nome') && !clientName) {
+                clientName = value;
+            }
+        }
+
+        const metadata: any = {};
+        if (form?.settings?.cademiEnabled) {
+            metadata.codigo = Date.now().toString();
+            metadata.status = 'aprovado';
+            metadata.produto_id = form.settings.cademiProductId;
+            metadata.produto_nome = form.settings.cademiProductName;
+            metadata.cliente_nome = clientName || 'Cliente';
+            metadata.cliente_email = clientEmail;
+        }
+
+        // Criar a submissão com metadados
         const { data: submissionData, error: submissionError } = await this.supabase.client
             .from('form_submissions')
             .insert({
-                form_id: submission.form_id
+                form_id: submission.form_id,
+                metadata: metadata
             })
             .select()
             .single();
@@ -212,6 +309,25 @@ export class FormService {
             .insert(values);
 
         if (valuesError) throw valuesError;
+
+        // Disparar integração com Cademí se habilitado
+        if (form?.settings?.cademiEnabled && clientEmail) {
+            console.log('[FormService] Cademi habilitado, disparando integração...');
+            const payload = {
+                token: form.settings.cademiToken,
+                productId: metadata.produto_id,
+                productName: metadata.produto_nome,
+                clientName: metadata.cliente_nome,
+                clientEmail: clientEmail,
+                submissionId: submissionData.id
+            };
+
+            this.supabase.client.functions.invoke('cademi-webhook', {
+                body: payload
+            }).catch(err => {
+                console.error('[FormService] Erro ao disparar Cademi:', err);
+            });
+        }
 
         return submissionData;
     }

@@ -21,6 +21,11 @@ export interface FormSettings {
     logoUrl?: string;
     successMessage?: string;
     redirectUrl?: string;
+    // Integração Cademí
+    cademiEnabled?: boolean;
+    cademiProductId?: string;
+    cademiProductName?: string;
+    cademiToken?: string;
 }
 
 export interface FormField {

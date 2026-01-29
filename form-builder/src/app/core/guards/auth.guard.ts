@@ -10,14 +10,28 @@ export class AuthGuard implements CanActivate {
     private authService = inject(AuthService);
 
     async canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Promise<boolean> {
-        const session = await this.authService.getSession();
+        console.log('[AuthGuard] Verificando acesso à rota:', state.url);
 
-        if (session) {
-            return true;
+        try {
+            // Aguardar inicialização do serviço de autenticação
+            await this.authService.waitForInit();
+
+            // Verificar sessão
+            const session = await this.authService.getSession();
+
+            if (session) {
+                console.log('[AuthGuard] Acesso permitido - usuário autenticado:', session.user.email);
+                return true;
+            }
+
+            // Não autenticado, redirecionar para login
+            console.log('[AuthGuard] Acesso negado - redirecionando para login');
+            this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+            return false;
+        } catch (error) {
+            console.error('[AuthGuard] Erro na verificação de autenticação:', error);
+            this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
+            return false;
         }
-
-        // Não autenticado, redirecionar para login
-        this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-        return false;
     }
 }
