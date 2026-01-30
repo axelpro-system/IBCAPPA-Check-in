@@ -2,13 +2,14 @@ import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { FormService } from '../../../core/services/form.service';
 import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models/form.model';
 
 @Component({
   selector: 'app-form-editor',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, FormsModule, RouterModule, DragDropModule],
   template: `
     <div class="page-header">
       <div>
@@ -188,9 +189,19 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             </div>
 
             <!-- Fields List -->
-            <div *ngIf="fields.length > 0" class="fields-list">
-              <div *ngFor="let field of fields; let i = index" class="field-item">
-                <div class="field-handle">
+            <div *ngIf="fields.length > 0" 
+                 class="fields-list" 
+                 cdkDropList 
+                 (cdkDropListDropped)="drop($event)">
+              <div *ngFor="let field of fields; let i = index" 
+                   class="field-item" 
+                   cdkDrag
+                   [cdkDragData]="field">
+                
+                <!-- Placeholder for drag -->
+                <div class="field-item-placeholder" *cdkDragPlaceholder></div>
+
+                <div class="field-handle" cdkDragHandle>
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="5" r="1"></circle>
                     <circle cx="12" cy="12" r="1"></circle>
@@ -401,16 +412,52 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
       border: 1px solid var(--color-gray-200);
       border-radius: var(--border-radius-md);
       transition: all var(--transition-fast);
+      position: relative;
       
       &:hover {
         border-color: var(--color-gray-300);
         background-color: var(--color-white);
       }
     }
+
+    /* Drag and Drop Styles */
+    .cdk-drag-preview {
+      box-sizing: border-box;
+      border-radius: var(--border-radius-md);
+      box-shadow: var(--shadow-xl);
+      background-color: var(--color-white);
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-4);
+      padding: var(--spacing-4);
+      border: 1px solid var(--color-primary);
+      z-index: 1000;
+    }
+
+    .cdk-drag-placeholder {
+      opacity: 0;
+    }
+
+    .cdk-drag-animating {
+      transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+    }
+
+    .fields-list.cdk-drop-list-dragging .field-item:not(.cdk-drag-placeholder) {
+      transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+    }
+
+    .field-item-placeholder {
+      background: var(--color-gray-100);
+      border: 2px dashed var(--color-gray-300);
+      border-radius: var(--border-radius-md);
+      min-height: 60px;
+    }
     
     .field-handle {
       color: var(--color-gray-400);
       cursor: grab;
+      display: flex;
+      align-items: center;
       
       &:active {
         cursor: grabbing;
@@ -770,6 +817,23 @@ export class FormEditorComponent implements OnInit {
     } catch (error) {
       console.error('Erro ao excluir campo:', error);
       alert('Erro ao excluir campo. Tente novamente.');
+    }
+  }
+
+  async drop(event: CdkDragDrop<string[]>) {
+    if (event.previousIndex === event.currentIndex) return;
+
+    moveItemInArray(this.fields, event.previousIndex, event.currentIndex);
+
+    try {
+      const fieldIds = this.fields.map(f => f.id);
+      if (this.form) {
+        await this.formService.reorderFields(this.form.id, fieldIds);
+      }
+    } catch (error) {
+      console.error('Erro ao reordenar campos:', error);
+      // Reverter em caso de erro
+      moveItemInArray(this.fields, event.currentIndex, event.previousIndex);
     }
   }
 }
