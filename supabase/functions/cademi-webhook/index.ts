@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
 
         // Montar os dados conforme solicitado: codigo,status,produto_id,produto_nome,cliente_nome,cliente_email
         // Usamos o submissionId como código único da transação
-        const transactionCode = submissionId || Date.now().toString()
+        const transactionCode = `${submissionId}-${Date.now()}`
 
         const body = new URLSearchParams()
         body.append('token', token)
