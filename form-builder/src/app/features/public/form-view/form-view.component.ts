@@ -198,6 +198,23 @@ import { Form, FormField } from '../../../core/models/form.model';
               </div>
             </div>
 
+            <!-- NPS (0-10) -->
+            <div *ngIf="field.field_type === 'nps'" class="nps-group">
+              <div class="nps-scale">
+                <button *ngFor="let score of [0,1,2,3,4,5,6,7,8,9,10]"
+                        type="button"
+                        class="nps-button"
+                        [class.active]="values[field.id] === score.toString()"
+                        (click)="values[field.id] = score.toString(); validateField(field)">
+                  {{ score }}
+                </button>
+              </div>
+              <div class="nps-labels">
+                <span>Nada provável</span>
+                <span>Muito provável</span>
+              </div>
+            </div>
+
             <!-- Help Text -->
             <p *ngIf="field.help_text && !errors[field.id]" class="form-help">
               {{ field.help_text }}
@@ -325,6 +342,51 @@ import { Form, FormField } from '../../../core/models/form.model';
       flex-direction: column;
       gap: var(--spacing-2);
     }
+
+    .nps-group {
+      margin-top: var(--spacing-2);
+    }
+
+    .nps-scale {
+      display: grid;
+      grid-template-columns: repeat(11, 1fr);
+      gap: var(--spacing-1);
+      margin-bottom: var(--spacing-2);
+    }
+
+    .nps-button {
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: var(--color-white);
+      border: 1px solid var(--color-gray-300);
+      border-radius: var(--border-radius-md);
+      font-weight: var(--font-weight-medium);
+      transition: all var(--transition-fast);
+      cursor: pointer;
+
+      &:hover {
+        border-color: var(--color-primary);
+        background-color: var(--color-gray-50);
+      }
+
+      &.active {
+        background-color: var(--color-primary);
+        border-color: var(--color-primary);
+        color: var(--color-white);
+        box-shadow: var(--shadow-sm);
+      }
+    }
+
+    .nps-labels {
+      display: flex;
+      justify-content: space-between;
+      padding: 0 var(--spacing-1);
+      font-size: var(--font-size-xs);
+      color: var(--color-gray-500);
+      font-weight: var(--font-weight-medium);
+    }
     
     .form-actions {
       margin-top: var(--spacing-8);
@@ -345,6 +407,11 @@ import { Form, FormField } from '../../../core/models/form.model';
       
       .form-container {
         padding: var(--spacing-6);
+      }
+
+      .nps-scale {
+        grid-template-columns: repeat(6, 1fr);
+        gap: var(--spacing-2);
       }
     }
   `]

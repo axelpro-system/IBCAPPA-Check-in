@@ -60,7 +60,8 @@ export type FieldType =
     | 'number'
     | 'date'
     | 'currency'
-    | 'file';
+    | 'file'
+    | 'nps';
 
 export interface FieldOption {
     label: string;

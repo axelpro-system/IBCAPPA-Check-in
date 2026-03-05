@@ -262,6 +262,7 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
               <option value="select">Seleção (Dropdown)</option>
               <option value="radio">Opções (Radio)</option>
               <option value="checkbox">Múltipla Escolha (Checkbox)</option>
+              <option value="nps">NPS (0-10)</option>
             </select>
           </div>
 
@@ -682,7 +683,8 @@ export class FormEditorComponent implements OnInit {
       select: 'Seleção',
       radio: 'Opções',
       checkbox: 'Múltipla Escolha',
-      file: 'Arquivo'
+      file: 'Arquivo',
+      nps: 'NPS (0-10)'
     };
     return labels[type] || type;
   }
