@@ -25,6 +25,10 @@ export const routes: Routes = [
             },
             {
                 path: 'forms/new',
+                loadComponent: () => import('./features/admin/form-template-gallery/form-template-gallery.component').then(m => m.FormTemplateGalleryComponent)
+            },
+            {
+                path: 'forms/new/editor',
                 loadComponent: () => import('./features/admin/form-editor/form-editor.component').then(m => m.FormEditorComponent)
             },
             {

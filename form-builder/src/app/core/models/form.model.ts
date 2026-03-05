@@ -42,9 +42,22 @@ export interface FormField {
     required: boolean;
     options: FieldOption[];
     validation: FieldValidation;
+    logic?: FieldLogic;
     field_order: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface FieldLogic {
+    action: 'show' | 'hide';
+    operator: 'all' | 'any';
+    rules: FieldLogicRule[];
+}
+
+export interface FieldLogicRule {
+    field_id: string;
+    operator: 'equals' | 'not_equals' | 'contains' | 'not_contains';
+    value: string;
 }
 
 export type FieldType =
@@ -118,6 +131,7 @@ export interface CreateFieldDTO {
     required?: boolean;
     options?: FieldOption[];
     validation?: FieldValidation;
+    logic?: FieldLogic;
     field_order?: number;
 }
 

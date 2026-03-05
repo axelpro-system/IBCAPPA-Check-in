@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -11,6 +11,9 @@ import { Form, FormField } from '../../../core/models/form.model';
   standalone: true,
   imports: [CommonModule, FormsModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  animations: [
+    // Podemos adicionar animações nativas aqui futuramente
+  ],
   template: `
     <!-- Loading -->
     <div *ngIf="loading()" class="loading-page">
@@ -43,9 +46,16 @@ import { Form, FormField } from '../../../core/models/form.model';
           <p *ngIf="currentForm.description" class="form-description">{{ currentForm.description }}</p>
         </header>
 
+        <!-- Progress Bar -->
+        <div class="progress-container">
+          <div class="progress-bar" [style.width.%]="calculateProgress()"></div>
+        </div>
+
         <!-- Form Fields -->
         <form (ngSubmit)="submitForm()" #formRef="ngForm">
-          <div *ngFor="let field of fields()" class="form-group">
+          <div *ngFor="let field of visibleFields(); let i = index" 
+               class="form-group fade-in"
+               [style.animation-delay]="(i * 0.1) + 's'">
             <label class="form-label" [for]="field.id">
               {{ field.label }}
               <span *ngIf="field.required" class="required">*</span>
@@ -305,12 +315,21 @@ import { Form, FormField } from '../../../core/models/form.model';
     .form-container {
       max-width: 640px;
       margin: 0 auto;
-      background-color: var(--color-white);
-      border-radius: var(--border-radius-lg);
-      box-shadow: var(--shadow-md);
-      padding: var(--spacing-8);
+      background-color: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: var(--border-radius-xl);
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+      padding: var(--spacing-10);
       position: relative;
       z-index: 2;
+      transition: all var(--transition-normal);
+
+      &:hover {
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+        background-color: rgba(255, 255, 255, 0.85);
+      }
     }
     
     .form-header {
@@ -356,39 +375,75 @@ import { Form, FormField } from '../../../core/models/form.model';
       gap: var(--spacing-2);
     }
 
-    .nps-group {
-      margin-top: var(--spacing-2);
+    .progress-container {
+      height: 6px;
+      background-color: var(--color-gray-100);
+      border-radius: var(--border-radius-full);
+      margin-bottom: var(--spacing-8);
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-primary), #6366f1);
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .form-actions {
+      margin-top: var(--spacing-8);
+    }
+
+    /* Animations */
+    @keyframes fadeInSlide {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .fade-in {
+      animation: fadeInSlide 0.6s ease-out forwards;
+      opacity: 0;
     }
 
     .nps-scale {
       display: grid;
       grid-template-columns: repeat(11, 1fr);
-      gap: var(--spacing-1);
-      margin-bottom: var(--spacing-2);
+      gap: var(--spacing-3);
+      margin-bottom: var(--spacing-3);
     }
 
     .nps-button {
+      width: 100%;
       aspect-ratio: 1;
       display: flex;
       align-items: center;
       justify-content: center;
       background-color: var(--color-white);
-      border: 1px solid var(--color-gray-300);
-      border-radius: var(--border-radius-md);
-      font-weight: var(--font-weight-medium);
-      transition: all var(--transition-fast);
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--border-radius-lg);
+      font-weight: var(--font-weight-semibold);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       cursor: pointer;
+      color: var(--color-gray-600);
 
       &:hover {
         border-color: var(--color-primary);
         background-color: var(--color-gray-50);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
       }
 
       &.active {
         background-color: var(--color-primary);
         border-color: var(--color-primary);
         color: var(--color-white);
-        box-shadow: var(--shadow-sm);
+        box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+        transform: scale(1.1);
       }
     }
 
@@ -434,7 +489,6 @@ export class FormViewComponent implements OnInit {
   private router = inject(Router);
   private formService = inject(FormService);
   private validationService = inject(ValidationService);
-  private cdr = inject(ChangeDetectorRef);
 
   loading = signal(true);
   submitting = signal(false);
@@ -442,6 +496,53 @@ export class FormViewComponent implements OnInit {
   fields = signal<FormField[]>([]);
   values = signal<Record<string, string>>({});
   errors = signal<Record<string, string>>({});
+
+  // Signal computado para campos visíveis
+  visibleFields = computed(() => {
+    const allFields = this.fields();
+    const currentValues = this.values();
+
+    return allFields.filter(field => {
+      // Se não tem lógica definida, o padrão é visível
+      if (!field.logic || !field.logic.rules || field.logic.rules.length === 0) {
+        return true;
+      }
+
+      const { action, operator, rules } = field.logic;
+
+      // Avaliar cada regra
+      const ruleResults = rules.map(rule => {
+        const dependentField = allFields.find(f => f.id === rule.field_id);
+        if (!dependentField) return false;
+
+        const value = currentValues[rule.field_id] || '';
+
+        switch (rule.operator) {
+          case 'equals':
+            return String(value) === String(rule.value);
+          case 'not_equals':
+            return String(value) !== String(rule.value);
+          case 'contains':
+            return String(value).toLowerCase().includes(String(rule.value).toLowerCase());
+          case 'not_contains':
+            return !String(value).toLowerCase().includes(String(rule.value).toLowerCase());
+          default:
+            return false;
+        }
+      });
+
+      // Combinar resultados baseado no operador (all/any)
+      let logicMet = false;
+      if (operator === 'all') {
+        logicMet = ruleResults.every(result => result === true);
+      } else {
+        logicMet = ruleResults.some(result => result === true);
+      }
+
+      // Determinar visibilidade final baseada na ação (show/hide)
+      return action === 'show' ? logicMet : !logicMet;
+    });
+  });
 
   async ngOnInit() {
     const slug = this.route.snapshot.paramMap.get('slug');
@@ -477,6 +578,23 @@ export class FormViewComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  calculateProgress(): number {
+    const visibleFields = this.visibleFields();
+    if (visibleFields.length === 0) return 0;
+
+    const values = this.values();
+    const requiredFields = visibleFields.filter(f => f.required);
+
+    if (requiredFields.length === 0) {
+      // Se não houver campos obrigatórios, conta todos os campos que têm valor
+      const filledFields = visibleFields.filter(f => values[f.id] && String(values[f.id]).trim() !== '');
+      return Math.round((filledFields.length / visibleFields.length) * 100);
+    }
+
+    const filledRequiredFields = requiredFields.filter(f => values[f.id] && String(values[f.id]).trim() !== '');
+    return Math.round((filledRequiredFields.length / requiredFields.length) * 100);
   }
 
   updateValue(fieldId: string, value: string) {
@@ -649,34 +767,50 @@ export class FormViewComponent implements OnInit {
   }
 
   async submitForm() {
-    // Validar todos os campos
-    let hasErrors = false;
+    const activeFields = this.visibleFields();
 
-    for (const field of this.fields()) {
+    // Limpar erros de campos que não estão mais visíveis
+    this.errors.update(prevErrors => {
+      const newErrors: Record<string, string> = {};
+      Object.keys(prevErrors).forEach(fieldId => {
+        if (activeFields.some(f => f.id === fieldId)) {
+          newErrors[fieldId] = prevErrors[fieldId];
+        }
+      });
+      return newErrors;
+    });
+
+    // Validar apenas campos visíveis
+    let hasErrors = false;
+    for (const field of activeFields) {
       if (!this.validateField(field)) {
         hasErrors = true;
       }
     }
 
     if (hasErrors) {
-      // Scroll para o primeiro erro
-      const firstErrorField = this.fields().find(f => this.errors()[f.id]);
-      if (firstErrorField) {
-        document.getElementById(firstErrorField.id)?.focus();
-      }
+      const firstError = document.querySelector('.is-invalid, .form-error');
+      firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
     try {
       this.submitting.set(true);
+      const formId = this.form()?.id;
+      if (!formId) return;
 
-      await this.formService.submitForm({
-        form_id: this.form()!.id,
-        values: this.values()
+      // Enviar apenas valores dos campos visíveis
+      const submissionData: Record<string, any> = {};
+      const currentValues = this.values();
+      activeFields.forEach(field => {
+        submissionData[field.id] = currentValues[field.id];
       });
 
-      // Redirecionar para página de sucesso
-      this.router.navigate(['/f', this.form()!.slug, 'success']);
+      await this.formService.submitForm({
+        form_id: formId,
+        values: submissionData
+      });
+      this.router.navigate(['/f', this.form()?.slug, 'success']);
     } catch (error) {
       console.error('Erro ao enviar formulário:', error);
       alert('Erro ao enviar formulário. Tente novamente.');

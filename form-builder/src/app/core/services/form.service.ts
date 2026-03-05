@@ -158,6 +158,41 @@ export class FormService {
         return this.updateForm(id, { status: 'archived' });
     }
 
+    async createFromTemplate(template: any): Promise<Form> {
+        console.log('[FormService] createFromTemplate - Iniciando...', template.name);
+
+        try {
+            // 1. Criar o formulário
+            const form = await this.createForm({
+                ...template.form,
+                slug: `${template.form.slug}-${Date.now().toString(36)}` // Slug único
+            });
+
+            // 2. Criar os campos em lote
+            const fieldsToCreate = template.fields.map((f: any, index: number) => ({
+                ...f,
+                form_id: form.id,
+                field_order: f.field_order ?? index
+            }));
+
+            const { data: createdFields, error } = await this.supabase.client
+                .from('form_fields')
+                .insert(fieldsToCreate)
+                .select();
+
+            if (error) {
+                console.error('[FormService] createFromTemplate - Erro ao criar campos:', error);
+                throw error;
+            }
+
+            console.log(`[FormService] createFromTemplate - Sucesso! Form: ${form.id}, Campos: ${createdFields?.length}`);
+            return form;
+        } catch (error) {
+            console.error('[FormService] createFromTemplate - Exceção:', error);
+            throw error;
+        }
+    }
+
     // =============================================
     // FORM FIELDS - CRUD
     // =============================================

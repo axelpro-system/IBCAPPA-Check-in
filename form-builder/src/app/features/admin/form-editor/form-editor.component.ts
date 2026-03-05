@@ -320,13 +320,83 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                       placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
                       rows="4"></textarea>
           </div>
+          <div class="form-group">
+            <div class="form-check">
+              <input type="checkbox" 
+                     id="fieldRequired" 
+                     [ngModel]="fieldData().required"
+                     (ngModelChange)="updateFieldData('required', $event)">
+              <label for="fieldRequired">Campo obrigatório</label>
+            </div>
+          </div>
 
-          <div class="form-check">
-            <input type="checkbox" 
-                   id="fieldRequired" 
-                   [ngModel]="fieldData().required"
-                   (ngModelChange)="updateFieldData('required', $event)">
-            <label for="fieldRequired">Campo obrigatório</label>
+          <hr class="my-4">
+
+          <div class="form-group mb-0">
+            <div class="form-check">
+              <input type="checkbox" 
+                     id="enableLogic" 
+                     [ngModel]="logicEnabled()"
+                     (ngModelChange)="toggleLogic($event)">
+              <label for="enableLogic"><strong>Lógica Condicional</strong></label>
+            </div>
+            <p class="text-sm text-gray-500 ml-6">Mostrar ou ocultar este campo baseado em outras respostas.</p>
+          </div>
+
+          <div *ngIf="logicEnabled() && fieldData().logic" class="logic-container mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div class="flex items-center gap-2 mb-4">
+              <select class="form-input text-sm w-32"
+                      [ngModel]="fieldData().logic?.action"
+                      (ngModelChange)="updateFieldData('logic', { action: $event, operator: fieldData().logic?.operator, rules: fieldData().logic?.rules })">
+                <option value="show">Mostrar</option>
+                <option value="hide">Ocultar</option>
+              </select>
+              <span>se</span>
+              <select class="form-input text-sm w-32"
+                      [ngModel]="fieldData().logic?.operator"
+                      (ngModelChange)="updateFieldData('logic', { action: fieldData().logic?.action, operator: $event, rules: fieldData().logic?.rules })">
+                <option value="all">todas as</option>
+                <option value="any">qualquer uma das</option>
+              </select>
+              <span>regras forem atendidas:</span>
+            </div>
+
+            <div class="logic-rules space-y-3">
+              <div *ngFor="let rule of fieldData().logic?.rules; let i = index" class="logic-rule flex items-start gap-2">
+                <div class="flex-1 space-y-2">
+                  <select class="form-input text-sm" 
+                          [ngModel]="rule.field_id"
+                          (ngModelChange)="updateLogicRule(i, 'field_id', $event)">
+                    <option value="">Selecione um campo...</option>
+                    <option *ngFor="let f of fields()" [value]="f.id" [disabled]="f.id === editingField()?.id">
+                      {{ f.label }}
+                    </option>
+                  </select>
+
+                  <div class="flex gap-2">
+                    <select class="form-input text-sm w-40" 
+                            [ngModel]="rule.operator"
+                            (ngModelChange)="updateLogicRule(i, 'operator', $event)">
+                      <option value="equals">é igual a</option>
+                      <option value="not_equals">é diferente de</option>
+                      <option value="contains">contém</option>
+                      <option value="not_contains">não contém</option>
+                    </select>
+                    <input type="text" class="form-input text-sm" 
+                           [ngModel]="rule.value"
+                           (ngModelChange)="updateLogicRule(i, 'value', $event)"
+                           placeholder="Valor">
+                  </div>
+                </div>
+                <button class="btn btn-icon text-red-500 mt-1" title="Remover regra" (click)="removeLogicRule(i)">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+
+            <button class="btn btn-outline-primary btn-sm mt-4 w-full" (click)="addLogicRule()">
+              <i class="bi bi-plus-lg mr-2"></i> Adicionar Regra
+            </button>
           </div>
         </div>
         <div class="modal-footer">
@@ -612,6 +682,7 @@ export class FormEditorComponent implements OnInit {
 
   showAddField = signal(false);
   editingField = signal<FormField | null>(null);
+  logicEnabled = signal(false);
 
   fieldData = signal<CreateFieldDTO>({
     form_id: '',
@@ -620,7 +691,8 @@ export class FormEditorComponent implements OnInit {
     placeholder: '',
     help_text: '',
     required: false,
-    options: []
+    options: [],
+    logic: undefined
   });
 
   optionsText = signal('');
@@ -788,8 +860,10 @@ export class FormEditorComponent implements OnInit {
       placeholder: field.placeholder || '',
       help_text: field.help_text || '',
       required: field.required,
-      options: field.options || []
+      options: field.options || [],
+      logic: field.logic
     });
+    this.logicEnabled.set(!!field.logic);
     this.optionsText.set((field.options || []).map(o => o.label).join('\n'));
   }
 
@@ -807,9 +881,65 @@ export class FormEditorComponent implements OnInit {
       placeholder: '',
       help_text: '',
       required: false,
-      options: []
+      options: [],
+      logic: undefined
     });
+    this.logicEnabled.set(false);
     this.optionsText.set('');
+  }
+
+  toggleLogic(enabled: boolean) {
+    this.logicEnabled.set(enabled);
+    if (enabled && !this.fieldData().logic) {
+      this.fieldData.update(prev => ({
+        ...prev,
+        logic: {
+          action: 'show',
+          operator: 'all',
+          rules: []
+        }
+      }));
+      this.addLogicRule();
+    } else if (!enabled) {
+      this.fieldData.update(prev => ({ ...prev, logic: undefined }));
+    }
+  }
+
+  addLogicRule() {
+    this.fieldData.update(prev => {
+      const logic = prev.logic || { action: 'show', operator: 'all', rules: [] };
+      return {
+        ...prev,
+        logic: {
+          ...logic,
+          rules: [...logic.rules, { field_id: '', operator: 'equals', value: '' }]
+        }
+      };
+    });
+  }
+
+  removeLogicRule(index: number) {
+    this.fieldData.update(prev => {
+      if (!prev.logic) return prev;
+      const rules = [...prev.logic.rules];
+      rules.splice(index, 1);
+      return {
+        ...prev,
+        logic: { ...prev.logic, rules }
+      };
+    });
+  }
+
+  updateLogicRule(index: number, key: string, value: any) {
+    this.fieldData.update(prev => {
+      if (!prev.logic) return prev;
+      const rules = [...prev.logic.rules];
+      rules[index] = { ...rules[index], [key]: value };
+      return {
+        ...prev,
+        logic: { ...prev.logic, rules }
+      };
+    });
   }
 
   async saveField() {
