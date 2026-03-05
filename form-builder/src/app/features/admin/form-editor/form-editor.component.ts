@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -10,6 +10,7 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
   selector: 'app-form-editor',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterModule, DragDropModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page-header">
       <div>
@@ -20,32 +21,32 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
           </svg>
           Voltar
         </a>
-        <h1>{{ isNew ? 'Novo Formulário' : 'Editar Formulário' }}</h1>
+        <h1>{{ isNew() ? 'Novo Formulário' : 'Editar Formulário' }}</h1>
       </div>
       
       <div class="header-actions">
-        <button *ngIf="!isNew && form?.status === 'draft'" 
+        <button *ngIf="!isNew() && form()?.status === 'draft'" 
                 class="btn btn-success" 
                 (click)="publishForm()"
-                [disabled]="saving">
+                [disabled]="saving()">
           Publicar
         </button>
-        <button class="btn btn-primary" (click)="saveForm()" [disabled]="saving">
-          {{ saving ? 'Salvando...' : 'Salvar' }}
+        <button class="btn btn-primary" (click)="saveForm()" [disabled]="saving()">
+          {{ saving() ? 'Salvando...' : 'Salvar' }}
         </button>
       </div>
     </div>
 
     <!-- Loading -->
-    <div *ngIf="loading" class="loading-container" style="flex-direction: column; align-items: center; gap: 20px;">
+    <div *ngIf="loading()" class="loading-container" style="flex-direction: column; align-items: center; gap: 20px;">
       <div class="spinner spinner-lg"></div>
       <p style="color: var(--color-gray-500);">Carregando formulário...</p>
-      <button class="btn btn-secondary btn-sm" (click)="loading = false; router.navigate(['/admin/forms'])">
+      <button class="btn btn-secondary btn-sm" (click)="cancelLoading()">
         Cancelar e Voltar
       </button>
     </div>
 
-    <div *ngIf="!loading" class="editor-grid">
+    <div *ngIf="!loading()" class="editor-grid">
       <!-- Form Settings -->
       <div class="editor-sidebar">
         <div class="card">
@@ -59,7 +60,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
               </label>
               <input type="text" 
                      class="form-input" 
-                     [(ngModel)]="formData.title"
+                     [ngModel]="formData().title"
+                     (ngModelChange)="updateFormData('title', $event)"
                      placeholder="Ex: Formulário de Cadastro"
                      (blur)="generateSlug()">
             </div>
@@ -67,7 +69,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             <div class="form-group">
               <label class="form-label">Descrição</label>
               <textarea class="form-textarea" 
-                        [(ngModel)]="formData.description"
+                        [ngModel]="formData().description"
+                        (ngModelChange)="updateFormData('description', $event)"
                         placeholder="Descrição opcional do formulário"
                         rows="3"></textarea>
             </div>
@@ -80,7 +83,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                 <span class="input-prefix">/f/</span>
                 <input type="text" 
                        class="form-input" 
-                       [(ngModel)]="formData.slug"
+                       [ngModel]="formData().slug"
+                       (ngModelChange)="updateFormData('slug', $event)"
                        placeholder="meu-formulario">
               </div>
               <p class="form-help">URL: {{ getFormUrl() }}</p>
@@ -88,7 +92,9 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             
             <div class="form-group">
               <label class="form-label">Status</label>
-              <select class="form-select" [(ngModel)]="formData.status">
+              <select class="form-select" 
+                      [ngModel]="formData().status"
+                      (ngModelChange)="updateFormData('status', $event)">
                 <option value="draft">Rascunho</option>
                 <option value="published">Publicado</option>
                 <option value="archived">Arquivado</option>
@@ -102,7 +108,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                 <label class="form-label">URL da Imagem de Fundo</label>
                 <input type="text" 
                        class="form-input" 
-                       [(ngModel)]="formData.settings.backgroundImageUrl"
+                       [ngModel]="formData().settings.backgroundImageUrl"
+                       (ngModelChange)="updateSetting('backgroundImageUrl', $event)"
                        placeholder="https://exemplo.com/imagem.jpg">
                 <p class="form-help">Use uma imagem de alta resolução.</p>
               </div>
@@ -113,8 +120,9 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                   <input type="range" 
                          min="0" max="100" 
                          style="flex: 1;"
-                         [(ngModel)]="formData.settings.backgroundOpacity">
-                  <span style="min-width: 40px;">{{ formData.settings.backgroundOpacity }}%</span>
+                         [ngModel]="formData().settings.backgroundOpacity"
+                         (ngModelChange)="updateSetting('backgroundOpacity', $event)">
+                  <span style="min-width: 40px;">{{ formData().settings.backgroundOpacity }}%</span>
                 </div>
               </div>
             </div>
@@ -130,41 +138,47 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
               <div class="form-check" style="margin-bottom: var(--spacing-4);">
                 <input type="checkbox" 
                        id="cademiEnabled" 
-                       [(ngModel)]="formData.settings.cademiEnabled">
+                       [ngModel]="formData().settings.cademiEnabled"
+                       (ngModelChange)="updateSetting('cademiEnabled', $event)">
                 <label for="cademiEnabled">Ativar Integração</label>
               </div>
 
-              <div *ngIf="formData.settings.cademiEnabled">
+              <div *ngIf="formData().settings.cademiEnabled">
                 <div class="form-group">
                   <label class="form-label">Token Cademí</label>
                   <input type="password" 
                          class="form-input" 
-                         [(ngModel)]="formData.settings.cademiToken"
+                         [ngModel]="formData().settings.cademiToken"
+                         (ngModelChange)="updateSetting('cademiToken', $event)"
                          placeholder="Seu Token de API">
                 </div>
 
                 <div class="form-group">
                   <label class="form-label">ID do Produto (Cademí)</label>
-                <input type="text" 
-                       class="form-input" 
-                       [(ngModel)]="formData.settings.cademiProductId"
-                       placeholder="Ex: 171440">
-              </div>
+                  <input type="text" 
+                         class="form-input" 
+                         [ngModel]="formData().settings.cademiProductId"
+                         (ngModelChange)="updateSetting('cademiProductId', $event)"
+                         placeholder="Ex: 171440">
+                </div>
 
-              <div class="form-group">
-                <label class="form-label">Ação ao Enviar</label>
-                <select class="form-select" [(ngModel)]="formData.settings.cademiStatus">
-                  <option value="aprovado">Liberar Acesso ao Curso</option>
-                  <option value="concluido">Emitir Certificado Diretamente</option>
-                </select>
-                <p class="form-help">"Emitir Certificado" marca o produto como concluído na Cademí.</p>
-              </div>
+                <div class="form-group">
+                  <label class="form-label">Ação ao Enviar</label>
+                  <select class="form-select" 
+                          [ngModel]="formData().settings.cademiStatus"
+                          (ngModelChange)="updateSetting('cademiStatus', $event)">
+                    <option value="aprovado">Liberar Acesso ao Curso</option>
+                    <option value="concluido">Emitir Certificado Diretamente</option>
+                  </select>
+                  <p class="form-help">"Emitir Certificado" marca o produto como concluído na Cademí.</p>
+                </div>
 
-              <div class="form-group">
+                <div class="form-group">
                   <label class="form-label">Nome do Produto</label>
                   <input type="text" 
                          class="form-input" 
-                         [(ngModel)]="formData.settings.cademiProductName"
+                         [ngModel]="formData().settings.cademiProductName"
+                         (ngModelChange)="updateSetting('cademiProductName', $event)"
                          placeholder="Ex: Curso de Crédito Rural">
                 </div>
               </div>
@@ -178,22 +192,22 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
         <div class="card">
           <div class="card-header">
             <h3>Campos do Formulário</h3>
-            <button class="btn btn-secondary btn-sm" (click)="showAddField = true">
+            <button class="btn btn-secondary btn-sm" (click)="showAddFieldModal()">
               + Adicionar Campo
             </button>
           </div>
           <div class="card-body">
             <!-- Empty State -->
-            <div *ngIf="fields.length === 0" class="fields-empty">
+            <div *ngIf="fields().length === 0" class="fields-empty">
               <p class="text-muted">Nenhum campo adicionado. Clique em "Adicionar Campo" para começar.</p>
             </div>
 
             <!-- Fields List -->
-            <div *ngIf="fields.length > 0" 
+            <div *ngIf="fields().length > 0" 
                  class="fields-list" 
                  cdkDropList 
                  (cdkDropListDropped)="drop($event)">
-              <div *ngFor="let field of fields; let i = index" 
+              <div *ngFor="let field of fields(); let i = index" 
                    class="field-item" 
                    cdkDrag
                    [cdkDragData]="field">
@@ -238,10 +252,10 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
     </div>
 
     <!-- Add/Edit Field Modal -->
-    <div *ngIf="showAddField || editingField" class="modal-backdrop" (click)="closeFieldModal()">
+    <div *ngIf="showAddField() || editingField()" class="modal-backdrop" (click)="closeFieldModal()">
       <div class="modal" (click)="$event.stopPropagation()">
         <div class="modal-header">
-          <h3>{{ editingField ? 'Editar Campo' : 'Adicionar Campo' }}</h3>
+          <h3>{{ editingField() ? 'Editar Campo' : 'Adicionar Campo' }}</h3>
           <button class="modal-close" (click)="closeFieldModal()">×</button>
         </div>
         <div class="modal-body">
@@ -249,7 +263,9 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             <label class="form-label">
               Tipo de Campo <span class="required">*</span>
             </label>
-            <select class="form-select" [(ngModel)]="fieldData.field_type">
+            <select class="form-select" 
+                    [ngModel]="fieldData().field_type"
+                    (ngModelChange)="updateFieldData('field_type', $event)">
               <option value="text">Texto</option>
               <option value="email">E-mail</option>
               <option value="phone">Telefone</option>
@@ -272,7 +288,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             </label>
             <input type="text" 
                    class="form-input" 
-                   [(ngModel)]="fieldData.label"
+                   [ngModel]="fieldData().label"
+                   (ngModelChange)="updateFieldData('label', $event)"
                    placeholder="Ex: Nome Completo">
           </div>
 
@@ -280,7 +297,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             <label class="form-label">Placeholder</label>
             <input type="text" 
                    class="form-input" 
-                   [(ngModel)]="fieldData.placeholder"
+                   [ngModel]="fieldData().placeholder"
+                   (ngModelChange)="updateFieldData('placeholder', $event)"
                    placeholder="Ex: Digite seu nome">
           </div>
 
@@ -288,15 +306,17 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
             <label class="form-label">Texto de Ajuda</label>
             <input type="text" 
                    class="form-input" 
-                   [(ngModel)]="fieldData.help_text"
+                   [ngModel]="fieldData().help_text"
+                   (ngModelChange)="updateFieldData('help_text', $event)"
                    placeholder="Ex: Informe seu nome completo">
           </div>
 
           <!-- Options for select/radio/checkbox -->
-          <div *ngIf="['select', 'radio', 'checkbox'].includes(fieldData.field_type)" class="form-group">
+          <div *ngIf="['select', 'radio', 'checkbox'].includes(fieldData().field_type)" class="form-group">
             <label class="form-label">Opções (uma por linha)</label>
             <textarea class="form-textarea" 
-                      [(ngModel)]="optionsText"
+                      [ngModel]="optionsText()"
+                      (ngModelChange)="optionsText.set($event)"
                       placeholder="Opção 1&#10;Opção 2&#10;Opção 3"
                       rows="4"></textarea>
           </div>
@@ -304,14 +324,15 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
           <div class="form-check">
             <input type="checkbox" 
                    id="fieldRequired" 
-                   [(ngModel)]="fieldData.required">
+                   [ngModel]="fieldData().required"
+                   (ngModelChange)="updateFieldData('required', $event)">
             <label for="fieldRequired">Campo obrigatório</label>
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" (click)="closeFieldModal()">Cancelar</button>
           <button class="btn btn-primary" (click)="saveField()">
-            {{ editingField ? 'Salvar' : 'Adicionar' }}
+            {{ editingField() ? 'Salvar' : 'Adicionar' }}
           </button>
         </div>
       </div>
@@ -561,14 +582,19 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
   `]
 })
 export class FormEditorComponent implements OnInit {
-  isNew = true;
-  loading = true;
-  saving = false;
+  private route = inject(ActivatedRoute);
+  public router = inject(Router);
+  private formService = inject(FormService);
+  private cdr = inject(ChangeDetectorRef);
 
-  form: Form | null = null;
-  fields: FormField[] = [];
+  isNew = signal(true);
+  loading = signal(true);
+  saving = signal(false);
 
-  formData = {
+  form = signal<Form | null>(null);
+  fields = signal<FormField[]>([]);
+
+  formData = signal({
     title: '',
     description: '',
     slug: '',
@@ -582,12 +608,12 @@ export class FormEditorComponent implements OnInit {
       backgroundImageUrl: '',
       backgroundOpacity: 100
     }
-  };
+  });
 
-  showAddField = false;
-  editingField: FormField | null = null;
+  showAddField = signal(false);
+  editingField = signal<FormField | null>(null);
 
-  fieldData: CreateFieldDTO = {
+  fieldData = signal<CreateFieldDTO>({
     form_id: '',
     label: '',
     field_type: 'text' as FieldType,
@@ -595,78 +621,86 @@ export class FormEditorComponent implements OnInit {
     help_text: '',
     required: false,
     options: []
-  };
+  });
 
-  optionsText = '';
-
-  constructor(
-    private route: ActivatedRoute,
-    public router: Router,
-    private formService: FormService,
-    private cdr: ChangeDetectorRef
-  ) { }
+  optionsText = signal('');
 
   async ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
 
     if (id) {
-      this.isNew = false;
+      this.isNew.set(false);
       await this.loadForm(id);
     } else {
-      this.loading = false;
-      this.cdr.detectChanges();
+      this.loading.set(false);
     }
   }
 
   async loadForm(id: string) {
-    console.log('FormEditor: loadForm started', id);
     try {
-      this.loading = true;
-      this.cdr.detectChanges();
+      this.loading.set(true);
 
-      console.log('FormEditor: calling getFormById');
-      this.form = await this.formService.getFormById(id);
-      console.log('FormEditor: form loaded', this.form);
+      const formResult = await this.formService.getFormById(id);
+      this.form.set(formResult);
 
-      if (this.form) {
-        this.formData = {
-          title: this.form.title,
-          description: this.form.description || '',
-          slug: this.form.slug,
-          status: this.form.status,
+      if (formResult) {
+        this.formData.set({
+          title: formResult.title,
+          description: formResult.description || '',
+          slug: formResult.slug,
+          status: formResult.status,
           settings: {
-            cademiEnabled: this.form.settings?.cademiEnabled || false,
-            cademiProductId: this.form.settings?.cademiProductId || '',
-            cademiProductName: this.form.settings?.cademiProductName || '',
-            cademiToken: this.form.settings?.cademiToken || '',
-            cademiStatus: this.form.settings?.cademiStatus || 'aprovado',
-            backgroundImageUrl: this.form.settings?.backgroundImageUrl || '',
-            backgroundOpacity: this.form.settings?.backgroundOpacity !== undefined ? this.form.settings.backgroundOpacity : 100
+            cademiEnabled: formResult.settings?.cademiEnabled || false,
+            cademiProductId: formResult.settings?.cademiProductId || '',
+            cademiProductName: formResult.settings?.cademiProductName || '',
+            cademiToken: formResult.settings?.cademiToken || '',
+            cademiStatus: formResult.settings?.cademiStatus || 'aprovado',
+            backgroundImageUrl: formResult.settings?.backgroundImageUrl || '',
+            backgroundOpacity: formResult.settings?.backgroundOpacity !== undefined ? formResult.settings.backgroundOpacity : 100
           }
-        };
+        });
 
-        console.log('FormEditor: calling getFormFields');
-        this.fields = await this.formService.getFormFields(id);
-        console.log('FormEditor: fields loaded', this.fields);
+        const fieldsResult = await this.formService.getFormFields(id);
+        this.fields.set(fieldsResult);
       }
     } catch (error) {
       console.error('Erro ao carregar formulário:', error);
       alert('Erro ao carregar formulário.');
       this.router.navigate(['/admin/forms']);
     } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+      this.loading.set(false);
     }
   }
 
+  cancelLoading() {
+    this.loading.set(false);
+    this.router.navigate(['/admin/forms']);
+  }
+
+  updateFormData(key: string, value: any) {
+    this.formData.update(data => ({ ...data, [key]: value }));
+  }
+
+  updateSetting(key: string, value: any) {
+    this.formData.update(data => ({
+      ...data,
+      settings: { ...data.settings, [key]: value }
+    }));
+  }
+
+  updateFieldData(key: string, value: any) {
+    this.fieldData.update(data => ({ ...data, [key]: value }));
+  }
+
   generateSlug() {
-    if (!this.formData.slug && this.formData.title) {
-      this.formData.slug = this.formService.generateSlug(this.formData.title);
+    const currentData = this.formData();
+    if (!currentData.slug && currentData.title) {
+      this.updateFormData('slug', this.formService.generateSlug(currentData.title));
     }
   }
 
   getFormUrl(): string {
-    return `${window.location.origin}/f/${this.formData.slug || 'meu-formulario'}`;
+    return `${window.location.origin}/f/${this.formData().slug || 'meu-formulario'}`;
   }
 
   getFieldTypeLabel(type: string): string {
@@ -690,20 +724,26 @@ export class FormEditorComponent implements OnInit {
   }
 
   async saveForm() {
-    if (!this.formData.title || !this.formData.slug) {
+    const currentData = this.formData();
+    if (!currentData.title || !currentData.slug) {
       alert('Preencha o título e a URL do formulário.');
       return;
     }
 
     try {
-      this.saving = true;
+      this.saving.set(true);
 
-      if (this.isNew) {
-        this.form = await this.formService.createForm(this.formData);
-        this.isNew = false;
-        this.router.navigate(['/admin/forms', this.form.id], { replaceUrl: true });
-      } else if (this.form) {
-        this.form = await this.formService.updateForm(this.form.id, this.formData);
+      if (this.isNew()) {
+        const newForm = await this.formService.createForm(currentData);
+        this.form.set(newForm);
+        this.isNew.set(false);
+        this.router.navigate(['/admin/forms', newForm.id], { replaceUrl: true });
+      } else {
+        const currentForm = this.form();
+        if (currentForm) {
+          const updated = await this.formService.updateForm(currentForm.id, currentData);
+          this.form.set(updated);
+        }
       }
     } catch (error: any) {
       console.error('Erro ao salvar formulário:', error);
@@ -713,29 +753,35 @@ export class FormEditorComponent implements OnInit {
         alert('Erro ao salvar formulário. Tente novamente.');
       }
     } finally {
-      this.saving = false;
+      this.saving.set(false);
     }
   }
 
   async publishForm() {
-    if (this.form && confirm('Publicar este formulário? Ele ficará acessível publicamente.')) {
+    const currentForm = this.form();
+    if (currentForm && confirm('Publicar este formulário? Ele ficará acessível publicamente.')) {
       try {
-        this.saving = true;
-        this.form = await this.formService.publishForm(this.form.id);
-        this.formData.status = 'published';
+        this.saving.set(true);
+        const published = await this.formService.publishForm(currentForm.id);
+        this.form.set(published);
+        this.updateFormData('status', 'published');
       } catch (error) {
         console.error('Erro ao publicar:', error);
         alert('Erro ao publicar formulário.');
       } finally {
-        this.saving = false;
+        this.saving.set(false);
       }
     }
   }
 
-  // Field Management
+  showAddFieldModal() {
+    this.resetFieldData();
+    this.showAddField.set(true);
+  }
+
   editField(field: FormField) {
-    this.editingField = field;
-    this.fieldData = {
+    this.editingField.set(field);
+    this.fieldData.set({
       form_id: field.form_id,
       label: field.label,
       field_type: field.field_type,
@@ -743,43 +789,45 @@ export class FormEditorComponent implements OnInit {
       help_text: field.help_text || '',
       required: field.required,
       options: field.options || []
-    };
-    this.optionsText = (field.options || []).map(o => o.label).join('\n');
+    });
+    this.optionsText.set((field.options || []).map(o => o.label).join('\n'));
   }
 
   closeFieldModal() {
-    this.showAddField = false;
-    this.editingField = null;
+    this.showAddField.set(false);
+    this.editingField.set(null);
     this.resetFieldData();
   }
 
   resetFieldData() {
-    this.fieldData = {
-      form_id: this.form?.id || '',
+    this.fieldData.set({
+      form_id: this.form()?.id || '',
       label: '',
-      field_type: 'text',
+      field_type: 'text' as FieldType,
       placeholder: '',
       help_text: '',
       required: false,
       options: []
-    };
-    this.optionsText = '';
+    });
+    this.optionsText.set('');
   }
 
   async saveField() {
-    if (!this.fieldData.label) {
+    const currentFieldData = this.fieldData();
+    if (!currentFieldData.label) {
       alert('Informe o rótulo do campo.');
       return;
     }
 
-    if (!this.form) {
+    const currentForm = this.form();
+    if (!currentForm) {
       alert('Salve o formulário antes de adicionar campos.');
       return;
     }
 
     // Parse options
-    if (['select', 'radio', 'checkbox'].includes(this.fieldData.field_type)) {
-      this.fieldData.options = this.optionsText
+    if (['select', 'radio', 'checkbox'].includes(currentFieldData.field_type)) {
+      currentFieldData.options = this.optionsText()
         .split('\n')
         .filter(line => line.trim())
         .map(line => ({
@@ -789,16 +837,22 @@ export class FormEditorComponent implements OnInit {
     }
 
     try {
-      if (this.editingField) {
-        const updated = await this.formService.updateField(this.editingField.id, this.fieldData);
-        const index = this.fields.findIndex(f => f.id === this.editingField!.id);
-        if (index !== -1) {
-          this.fields[index] = updated;
-        }
+      const currentEditingField = this.editingField();
+      if (currentEditingField) {
+        const updated = await this.formService.updateField(currentEditingField.id, currentFieldData);
+        this.fields.update(prev => {
+          const index = prev.findIndex(f => f.id === currentEditingField.id);
+          if (index !== -1) {
+            const next = [...prev];
+            next[index] = updated;
+            return next;
+          }
+          return prev;
+        });
       } else {
-        this.fieldData.form_id = this.form.id;
-        const newField = await this.formService.createField(this.fieldData);
-        this.fields.push(newField);
+        currentFieldData.form_id = currentForm.id;
+        const newField = await this.formService.createField(currentFieldData);
+        this.fields.update(prev => [...prev, newField]);
       }
 
       this.closeFieldModal();
@@ -815,27 +869,34 @@ export class FormEditorComponent implements OnInit {
 
     try {
       await this.formService.deleteField(field.id);
-      this.fields = this.fields.filter(f => f.id !== field.id);
+      this.fields.update(prev => prev.filter(f => f.id !== field.id));
     } catch (error) {
       console.error('Erro ao excluir campo:', error);
       alert('Erro ao excluir campo. Tente novamente.');
     }
   }
 
-  async drop(event: CdkDragDrop<string[]>) {
+  async drop(event: CdkDragDrop<FormField[]>) {
     if (event.previousIndex === event.currentIndex) return;
 
-    moveItemInArray(this.fields, event.previousIndex, event.currentIndex);
+    const currentFields = [...this.fields()];
+    moveItemInArray(currentFields, event.previousIndex, event.currentIndex);
+    this.fields.set(currentFields);
 
     try {
-      const fieldIds = this.fields.map(f => f.id);
-      if (this.form) {
-        await this.formService.reorderFields(this.form.id, fieldIds);
+      const fieldIds = currentFields.map(f => f.id);
+      const currentForm = this.form();
+      if (currentForm) {
+        await this.formService.reorderFields(currentForm.id, fieldIds);
       }
     } catch (error) {
       console.error('Erro ao reordenar campos:', error);
-      // Reverter em caso de erro
-      moveItemInArray(this.fields, event.currentIndex, event.previousIndex);
+      // Reverter em caso de erro (recarga simples para este MVP)
+      const currentForm = this.form();
+      if (currentForm) {
+        const fieldsResult = await this.formService.getFormFields(currentForm.id);
+        this.fields.set(fieldsResult);
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -10,14 +10,15 @@ import { Form, FormField } from '../../../core/models/form.model';
   selector: 'app-form-view',
   standalone: true,
   imports: [CommonModule, FormsModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- Loading -->
-    <div *ngIf="loading" class="loading-page">
+    <div *ngIf="loading()" class="loading-page">
       <div class="spinner spinner-lg"></div>
     </div>
 
     <!-- Not Found -->
-    <div *ngIf="!loading && !form" class="error-page">
+    <div *ngIf="!loading() && !form()" class="error-page">
       <div class="error-content">
         <h1>404</h1>
         <h2>Formulário não encontrado</h2>
@@ -26,25 +27,25 @@ import { Form, FormField } from '../../../core/models/form.model';
     </div>
 
     <!-- Form -->
-    <div *ngIf="!loading && form" 
+    <div *ngIf="!loading() && form() as currentForm" 
          class="form-page" 
-         [style.background-image]="form.settings.backgroundImageUrl ? 'url(' + form.settings.backgroundImageUrl + ')' : ''">
+         [style.background-image]="currentForm.settings.backgroundImageUrl ? 'url(' + currentForm.settings.backgroundImageUrl + ')' : ''">
       
       <!-- Background Overlay (for opacity/contrast) -->
-      <div *ngIf="form.settings.backgroundImageUrl" 
+      <div *ngIf="currentForm.settings.backgroundImageUrl" 
            class="form-overlay" 
-           [style.opacity]="1 - ((form.settings.backgroundOpacity ?? 100) / 100)"></div>
+           [style.opacity]="1 - ((currentForm.settings.backgroundOpacity ?? 100) / 100)"></div>
 
       <div class="form-container">
         <!-- Header -->
         <header class="form-header">
-          <h1>{{ form.title }}</h1>
-          <p *ngIf="form.description" class="form-description">{{ form.description }}</p>
+          <h1>{{ currentForm.title }}</h1>
+          <p *ngIf="currentForm.description" class="form-description">{{ currentForm.description }}</p>
         </header>
 
         <!-- Form Fields -->
         <form (ngSubmit)="submitForm()" #formRef="ngForm">
-          <div *ngFor="let field of fields" class="form-group">
+          <div *ngFor="let field of fields()" class="form-group">
             <label class="form-label" [for]="field.id">
               {{ field.label }}
               <span *ngIf="field.required" class="required">*</span>
@@ -55,8 +56,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="text"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || ''"
                    [required]="field.required">
@@ -66,8 +68,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="email"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || 'email@exemplo.com'"
                    [required]="field.required"
@@ -78,8 +81,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="tel"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || '(00) 00000-0000'"
                    [required]="field.required"
@@ -91,8 +95,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="text"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || '000.000.000-00'"
                    [required]="field.required"
@@ -105,8 +110,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="text"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || '00.000.000/0000-00'"
                    [required]="field.required"
@@ -119,8 +125,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="number"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [placeholder]="field.placeholder || ''"
                    [required]="field.required">
@@ -131,8 +138,9 @@ import { Form, FormField } from '../../../core/models/form.model';
               <input [id]="field.id"
                      type="text"
                      class="form-input"
-                     [class.is-invalid]="errors[field.id]"
-                     [(ngModel)]="values[field.id]"
+                     [class.is-invalid]="errors()[field.id]"
+                     [ngModel]="values()[field.id]"
+                     (ngModelChange)="updateValue(field.id, $event)"
                      [name]="field.id"
                      [placeholder]="field.placeholder || '0,00'"
                      [required]="field.required"
@@ -144,8 +152,9 @@ import { Form, FormField } from '../../../core/models/form.model';
                    [id]="field.id"
                    type="date"
                    class="form-input"
-                   [class.is-invalid]="errors[field.id]"
-                   [(ngModel)]="values[field.id]"
+                   [class.is-invalid]="errors()[field.id]"
+                   [ngModel]="values()[field.id]"
+                   (ngModelChange)="updateValue(field.id, $event)"
                    [name]="field.id"
                    [required]="field.required">
 
@@ -153,8 +162,9 @@ import { Form, FormField } from '../../../core/models/form.model';
             <textarea *ngIf="field.field_type === 'textarea'"
                       [id]="field.id"
                       class="form-textarea"
-                      [class.is-invalid]="errors[field.id]"
-                      [(ngModel)]="values[field.id]"
+                      [class.is-invalid]="errors()[field.id]"
+                      [ngModel]="values()[field.id]"
+                      (ngModelChange)="updateValue(field.id, $event)"
                       [name]="field.id"
                       [placeholder]="field.placeholder || ''"
                       [required]="field.required"
@@ -164,8 +174,9 @@ import { Form, FormField } from '../../../core/models/form.model';
             <select *ngIf="field.field_type === 'select'"
                     [id]="field.id"
                     class="form-select"
-                    [class.is-invalid]="errors[field.id]"
-                    [(ngModel)]="values[field.id]"
+                    [class.is-invalid]="errors()[field.id]"
+                    [ngModel]="values()[field.id]"
+                    (ngModelChange)="updateValue(field.id, $event)"
                     [name]="field.id"
                     [required]="field.required">
               <option value="">Selecione...</option>
@@ -181,7 +192,8 @@ import { Form, FormField } from '../../../core/models/form.model';
                        [id]="field.id + '_' + option.value"
                        [name]="field.id"
                        [value]="option.value"
-                       [(ngModel)]="values[field.id]"
+                       [ngModel]="values()[field.id]"
+                       (ngModelChange)="updateValue(field.id, $event)"
                        [required]="field.required">
                 <label [for]="field.id + '_' + option.value">{{ option.label }}</label>
               </div>
@@ -193,6 +205,7 @@ import { Form, FormField } from '../../../core/models/form.model';
                 <input type="checkbox"
                        [id]="field.id + '_' + option.value"
                        [value]="option.value"
+                       [checked]="isCheckboxChecked(field.id, option.value)"
                        (change)="toggleCheckbox(field.id, option.value, $event)">
                 <label [for]="field.id + '_' + option.value">{{ option.label }}</label>
               </div>
@@ -204,8 +217,8 @@ import { Form, FormField } from '../../../core/models/form.model';
                 <button *ngFor="let score of [0,1,2,3,4,5,6,7,8,9,10]"
                         type="button"
                         class="nps-button"
-                        [class.active]="values[field.id] === score.toString()"
-                        (click)="values[field.id] = score.toString(); validateField(field)">
+                        [class.active]="values()[field.id] === score.toString()"
+                        (click)="updateValue(field.id, score.toString()); validateField(field)">
                   {{ score }}
                 </button>
               </div>
@@ -216,13 +229,13 @@ import { Form, FormField } from '../../../core/models/form.model';
             </div>
 
             <!-- Help Text -->
-            <p *ngIf="field.help_text && !errors[field.id]" class="form-help">
+            <p *ngIf="field.help_text && !errors()[field.id]" class="form-help">
               {{ field.help_text }}
             </p>
 
             <!-- Error -->
-            <p *ngIf="errors[field.id]" class="form-error">
-              {{ errors[field.id] }}
+            <p *ngIf="errors()[field.id]" class="form-error">
+              {{ errors()[field.id] }}
             </p>
           </div>
 
@@ -230,8 +243,8 @@ import { Form, FormField } from '../../../core/models/form.model';
           <div class="form-actions">
             <button type="submit" 
                     class="btn btn-primary btn-lg btn-block" 
-                    [disabled]="submitting">
-              {{ submitting ? 'Enviando...' : 'Enviar' }}
+                    [disabled]="submitting()">
+              {{ submitting() ? 'Enviando...' : 'Enviar' }}
             </button>
           </div>
 
@@ -417,21 +430,18 @@ import { Form, FormField } from '../../../core/models/form.model';
   `]
 })
 export class FormViewComponent implements OnInit {
-  loading = true;
-  submitting = false;
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+  private formService = inject(FormService);
+  private validationService = inject(ValidationService);
+  private cdr = inject(ChangeDetectorRef);
 
-  form: Form | null = null;
-  fields: FormField[] = [];
-  values: Record<string, string> = {};
-  errors: Record<string, string> = {};
-
-  constructor(
-    private route: ActivatedRoute,
-    private router: Router,
-    private formService: FormService,
-    private validationService: ValidationService,
-    private cdr: ChangeDetectorRef
-  ) { }
+  loading = signal(true);
+  submitting = signal(false);
+  form = signal<Form | null>(null);
+  fields = signal<FormField[]>([]);
+  values = signal<Record<string, string>>({});
+  errors = signal<Record<string, string>>({});
 
   async ngOnInit() {
     const slug = this.route.snapshot.paramMap.get('slug');
@@ -439,96 +449,117 @@ export class FormViewComponent implements OnInit {
     if (slug) {
       await this.loadForm(slug);
     } else {
-      this.loading = false;
-      this.cdr.detectChanges();
+      this.loading.set(false);
     }
   }
 
   async loadForm(slug: string) {
     try {
-      this.loading = true;
-      this.cdr.detectChanges();
+      this.loading.set(true);
 
-      this.form = await this.formService.getFormBySlug(slug);
+      const formData = await this.formService.getFormBySlug(slug);
+      this.form.set(formData);
 
-      if (this.form) {
-        this.fields = await this.formService.getFormFields(this.form.id);
+      if (formData) {
+        const formFields = await this.formService.getFormFields(formData.id);
+        this.fields.set(formFields);
 
         // Inicializar valores
-        this.fields.forEach(field => {
-          this.values[field.id] = '';
+        const initialValues: Record<string, string> = {};
+        formFields.forEach(field => {
+          initialValues[field.id] = '';
         });
+        this.values.set(initialValues);
       }
     } catch (error) {
       console.error('Erro ao carregar formulário:', error);
-      this.form = null;
+      this.form.set(null);
     } finally {
-      this.loading = false;
-      this.cdr.detectChanges();
+      this.loading.set(false);
     }
   }
 
+  updateValue(fieldId: string, value: string) {
+    this.values.update(v => ({ ...v, [fieldId]: value }));
+  }
+
   validateField(field: FormField): boolean {
-    const rawValue = this.values[field.id];
+    const rawValue = this.values()[field.id];
     const value = (rawValue !== undefined && rawValue !== null) ? String(rawValue).trim() : '';
 
     // Campo obrigatório
     if (field.required && !value) {
-      this.errors[field.id] = 'Este campo é obrigatório';
+      this.errors.update(e => ({ ...e, [field.id]: 'Este campo é obrigatório' }));
       return false;
     }
 
     if (!value) {
-      delete this.errors[field.id];
+      this.errors.update(e => {
+        const next = { ...e };
+        delete next[field.id];
+        return next;
+      });
       return true;
     }
 
     // Validações específicas
+    let isValid = true;
+    let errorMessage = '';
+
     switch (field.field_type) {
       case 'email':
         if (!this.validationService.validateEmail(value)) {
-          this.errors[field.id] = 'Informe um e-mail válido';
-          return false;
+          isValid = false;
+          errorMessage = 'Informe um e-mail válido';
         }
         break;
 
       case 'cpf':
         if (!this.validationService.validateCPF(value)) {
-          this.errors[field.id] = 'CPF inválido';
-          return false;
+          isValid = false;
+          errorMessage = 'CPF inválido';
         }
         break;
 
       case 'cnpj':
         if (!this.validationService.validateCNPJ(value)) {
-          this.errors[field.id] = 'CNPJ inválido';
-          return false;
+          isValid = false;
+          errorMessage = 'CNPJ inválido';
         }
         break;
 
       case 'phone':
         if (!this.validationService.validatePhone(value)) {
-          this.errors[field.id] = 'Telefone inválido';
-          return false;
+          isValid = false;
+          errorMessage = 'Telefone inválido';
         }
         break;
     }
 
     // Validação de nome (se label contiver "nome")
-    if (field.field_type === 'text' && field.label.toLowerCase().includes('nome')) {
+    if (isValid && field.field_type === 'text' && field.label.toLowerCase().includes('nome')) {
       const nameValidation = this.validationService.validateName(value);
       if (!nameValidation.valid) {
-        this.errors[field.id] = nameValidation.message || 'Nome inválido';
-        return false;
+        isValid = false;
+        errorMessage = nameValidation.message || 'Nome inválido';
       }
     }
 
-    delete this.errors[field.id];
+    if (!isValid) {
+      this.errors.update(e => ({ ...e, [field.id]: errorMessage }));
+      return false;
+    }
+
+    this.errors.update(e => {
+      const next = { ...e };
+      delete next[field.id];
+      return next;
+    });
     return true;
   }
 
   formatCPF(fieldId: string) {
-    const rawValue = this.values[fieldId];
+    const rawValue = this.values()[fieldId];
     if (rawValue === undefined || rawValue === null) return;
     let value = String(rawValue).replace(/\D/g, '');
     if (value.length > 11) value = value.substring(0, 11);
@@ -541,11 +572,11 @@ export class FormViewComponent implements OnInit {
       value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
     }
 
-    this.values[fieldId] = value;
+    this.updateValue(fieldId, value);
   }
 
   formatCNPJ(fieldId: string) {
-    const rawValue = this.values[fieldId];
+    const rawValue = this.values()[fieldId];
     if (rawValue === undefined || rawValue === null) return;
     let value = String(rawValue).replace(/\D/g, '');
     if (value.length > 14) value = value.substring(0, 14);
@@ -560,11 +591,11 @@ export class FormViewComponent implements OnInit {
       value = value.replace(/(\d{2})(\d{1,3})/, '$1.$2');
     }
 
-    this.values[fieldId] = value;
+    this.updateValue(fieldId, value);
   }
 
   formatPhone(fieldId: string) {
-    const rawValue = this.values[fieldId];
+    const rawValue = this.values()[fieldId];
     if (rawValue === undefined || rawValue === null) return;
     let value = String(rawValue).replace(/\D/g, '');
     if (value.length > 11) value = value.substring(0, 11);
@@ -577,28 +608,35 @@ export class FormViewComponent implements OnInit {
       value = value.replace(/(\d{2})(\d{0,5})/, '($1) $2');
     }
 
-    this.values[fieldId] = value;
+    this.updateValue(fieldId, value);
   }
 
   formatCurrency(fieldId: string) {
-    const rawValue = this.values[fieldId];
+    const rawValue = this.values()[fieldId];
     if (rawValue === undefined || rawValue === null) return;
     let value = String(rawValue).replace(/\D/g, '');
     if (!value) {
-      this.values[fieldId] = '';
+      this.updateValue(fieldId, '');
       return;
     }
 
     const numValue = parseInt(value) / 100;
-    this.values[fieldId] = numValue.toLocaleString('pt-BR', {
+    const formatted = numValue.toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
+    this.updateValue(fieldId, formatted);
+  }
+
+  isCheckboxChecked(fieldId: string, optionValue: string): boolean {
+    const rawValue = this.values()[fieldId];
+    const currentValues = (rawValue && typeof rawValue === 'string') ? rawValue.split(',') : [];
+    return currentValues.includes(optionValue);
   }
 
   toggleCheckbox(fieldId: string, optionValue: string, event: Event) {
     const checked = (event.target as HTMLInputElement).checked;
-    const rawValue = this.values[fieldId];
+    const rawValue = this.values()[fieldId];
     let currentValues = (rawValue && typeof rawValue === 'string') ? rawValue.split(',') : [];
 
     if (checked) {
@@ -607,14 +645,14 @@ export class FormViewComponent implements OnInit {
       currentValues = currentValues.filter(v => v !== optionValue);
     }
 
-    this.values[fieldId] = currentValues.join(',');
+    this.updateValue(fieldId, currentValues.join(','));
   }
 
   async submitForm() {
     // Validar todos os campos
     let hasErrors = false;
 
-    for (const field of this.fields) {
+    for (const field of this.fields()) {
       if (!this.validateField(field)) {
         hasErrors = true;
       }
@@ -622,7 +660,7 @@ export class FormViewComponent implements OnInit {
 
     if (hasErrors) {
       // Scroll para o primeiro erro
-      const firstErrorField = this.fields.find(f => this.errors[f.id]);
+      const firstErrorField = this.fields().find(f => this.errors()[f.id]);
       if (firstErrorField) {
         document.getElementById(firstErrorField.id)?.focus();
       }
@@ -630,20 +668,21 @@ export class FormViewComponent implements OnInit {
     }
 
     try {
-      this.submitting = true;
+      this.submitting.set(true);
 
       await this.formService.submitForm({
-        form_id: this.form!.id,
-        values: this.values
+        form_id: this.form()!.id,
+        values: this.values()
       });
 
       // Redirecionar para página de sucesso
-      this.router.navigate(['/f', this.form!.slug, 'success']);
+      this.router.navigate(['/f', this.form()!.slug, 'success']);
     } catch (error) {
       console.error('Erro ao enviar formulário:', error);
       alert('Erro ao enviar formulário. Tente novamente.');
     } finally {
-      this.submitting = false;
+      this.submitting.set(false);
     }
   }
 }
+
