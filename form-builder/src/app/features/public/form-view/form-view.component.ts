@@ -510,12 +510,14 @@ export class FormViewComponent implements OnInit {
 
       const { action, operator, rules } = field.logic;
 
-      // Avaliar cada regra
       const ruleResults = rules.map(rule => {
         const dependentField = allFields.find(f => f.id === rule.field_id);
         if (!dependentField) return false;
 
         const value = currentValues[rule.field_id] || '';
+
+        let numValue: number;
+        let numRuleValue: number;
 
         switch (rule.operator) {
           case 'equals':
@@ -526,6 +528,20 @@ export class FormViewComponent implements OnInit {
             return String(value).toLowerCase().includes(String(rule.value).toLowerCase());
           case 'not_contains':
             return !String(value).toLowerCase().includes(String(rule.value).toLowerCase());
+          case 'greater_than_or_equal':
+            numValue = Number(value);
+            numRuleValue = Number(rule.value);
+            if (!isNaN(numValue) && !isNaN(numRuleValue)) {
+              return numValue >= numRuleValue;
+            }
+            return String(value) >= String(rule.value);
+          case 'less_than_or_equal':
+            numValue = Number(value);
+            numRuleValue = Number(rule.value);
+            if (!isNaN(numValue) && !isNaN(numRuleValue)) {
+              return numValue <= numRuleValue;
+            }
+            return String(value) <= String(rule.value);
           default:
             return false;
         }

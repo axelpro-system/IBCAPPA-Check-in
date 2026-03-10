@@ -56,7 +56,7 @@ export interface FieldLogic {
 
 export interface FieldLogicRule {
     field_id: string;
-    operator: 'equals' | 'not_equals' | 'contains' | 'not_contains';
+    operator: 'equals' | 'not_equals' | 'contains' | 'not_contains' | 'greater_than_or_equal' | 'less_than_or_equal';
     value: string;
 }
 

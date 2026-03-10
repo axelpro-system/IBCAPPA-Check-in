@@ -381,6 +381,8 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
                       <option value="not_equals">é diferente de</option>
                       <option value="contains">contém</option>
                       <option value="not_contains">não contém</option>
+                      <option value="greater_than_or_equal">é maior ou igual a (>=)</option>
+                      <option value="less_than_or_equal">é menor ou igual a (<=)</option>
                     </select>
                     <input type="text" class="form-input text-sm" 
                            [ngModel]="rule.value"
