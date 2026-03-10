@@ -217,6 +217,16 @@ export class FormService {
                 console.error('[FormService] getFormFields - Erro:', error);
                 throw error;
             }
+
+            // Extract logic from validation
+            if (data) {
+                data.forEach((item: any) => {
+                    if (item.validation && item.validation._logic) {
+                        item.logic = item.validation._logic;
+                    }
+                });
+            }
+
             return data || [];
         } catch (error) {
             console.error('[FormService] getFormFields - Exceção:', error);
@@ -235,28 +245,66 @@ export class FormService {
 
         const maxOrder = fields && fields.length > 0 ? fields[0].field_order : -1;
 
+        const payload: any = {
+            ...field,
+            field_order: field.field_order ?? maxOrder + 1
+        };
+
+        // Move logic to validation object to avoid schema error
+        if (payload.logic !== undefined) {
+            payload.validation = payload.validation || {};
+            payload.validation._logic = payload.logic;
+            delete payload.logic;
+        }
+
         const { data, error } = await this.supabase.client
             .from('form_fields')
-            .insert({
-                ...field,
-                field_order: field.field_order ?? maxOrder + 1
-            })
+            .insert(payload)
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('[FormService] createField - Erro Supabase:', error);
+            throw error;
+        }
+
+        if (data && data.validation && data.validation._logic) {
+            data.logic = data.validation._logic;
+        }
+
         return data;
     }
 
     async updateField(id: string, updates: Partial<FormField>): Promise<FormField> {
+        const payload: any = { ...updates };
+
+        // Move logic to validation object to avoid schema error
+        if ('logic' in payload) {
+            payload.validation = payload.validation || {};
+            if (payload.logic !== undefined) {
+                payload.validation._logic = payload.logic;
+            } else {
+                delete payload.validation._logic;
+            }
+            delete payload.logic;
+        }
+
         const { data, error } = await this.supabase.client
             .from('form_fields')
-            .update(updates)
+            .update(payload)
             .eq('id', id)
             .select()
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('[FormService] updateField - Erro Supabase:', error);
+            throw error;
+        }
+
+        if (data && data.validation && data.validation._logic) {
+            data.logic = data.validation._logic;
+        }
+
         return data;
     }
 
