@@ -1,14 +1,16 @@
 import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { FormService } from '../../../core/services/form.service';
 import { Form, FormField, SubmissionWithValues } from '../../../core/models/form.model';
 import { ValidationService } from '../../../core/services/validation.service';
+import { AuditService } from '../../../core/services/audit.service';
 
 @Component({
   selector: 'app-form-responses',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="page-header">
       <div>
@@ -17,14 +19,14 @@ import { ValidationService } from '../../../core/services/validation.service';
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
           </svg>
-          Voltar ao Formulário
+          Voltar ao Formulario
         </a>
         <h1>Respostas: {{ form?.title }}</h1>
-        <p class="text-muted">{{ submissions.length }} resposta(s) recebida(s)</p>
+        <p class="text-muted">{{ filteredSubmissions().length }} resposta(s) no filtro atual</p>
       </div>
-      
+
       <div class="header-actions">
-        <button class="btn btn-secondary" (click)="exportCSV()" [disabled]="submissions.length === 0">
+        <button class="btn btn-secondary" (click)="exportCSV()" [disabled]="filteredSubmissions().length === 0">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -35,13 +37,35 @@ import { ValidationService } from '../../../core/services/validation.service';
       </div>
     </div>
 
-    <!-- Loading -->
+    <div *ngIf="!loading" class="filters card">
+      <div class="card-body filters-grid">
+        <div class="form-group">
+          <label class="form-label">De</label>
+          <input type="date" class="form-input" [(ngModel)]="filters.fromDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ate</label>
+          <input type="date" class="form-input" [(ngModel)]="filters.toDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Status Cademi</label>
+          <select class="form-select" [(ngModel)]="filters.status">
+            <option value="">Todos</option>
+            <option value="aprovado">Aprovado</option>
+            <option value="concluido">Concluido</option>
+          </select>
+        </div>
+        <div class="filter-actions">
+          <button class="btn btn-secondary" (click)="clearFilters()">Limpar</button>
+        </div>
+      </div>
+    </div>
+
     <div *ngIf="loading" class="loading-container">
       <div class="spinner spinner-lg"></div>
     </div>
 
-    <!-- Empty State -->
-    <div *ngIf="!loading && submissions.length === 0" class="empty-state card">
+    <div *ngIf="!loading && filteredSubmissions().length === 0" class="empty-state card">
       <div class="card-body">
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -49,30 +73,29 @@ import { ValidationService } from '../../../core/services/validation.service';
           <line x1="16" y1="13" x2="8" y2="13"></line>
           <line x1="16" y1="17" x2="8" y2="17"></line>
         </svg>
-        <h3>Nenhuma resposta ainda</h3>
-        <p class="text-muted">Quando alguém enviar o formulário, as respostas aparecerão aqui.</p>
-        <a *ngIf="form?.status === 'published'" 
-           [href]="'/f/' + form?.slug" 
-           target="_blank" 
+        <h3>Nenhuma resposta para o filtro selecionado</h3>
+        <p class="text-muted">Ajuste os filtros ou aguarde novos envios.</p>
+        <a *ngIf="form?.status === 'published'"
+           [href]="'/f/' + form?.slug"
+           target="_blank"
            class="btn btn-primary mt-4">
-          Ver Formulário
+          Ver Formulario
         </a>
       </div>
     </div>
 
-    <!-- Responses Table -->
-    <div *ngIf="!loading && submissions.length > 0" class="card">
+    <div *ngIf="!loading && filteredSubmissions().length > 0" class="card">
       <div class="table-container">
         <table class="table">
           <thead>
             <tr>
               <th>Data</th>
               <th *ngFor="let field of fields">{{ field.label }}</th>
-              <th>Ações</th>
+              <th>Acoes</th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let submission of submissions">
+            <tr *ngFor="let submission of filteredSubmissions()">
               <td class="date-cell">
                 {{ formatDateTime(submission.submitted_at) }}
               </td>
@@ -97,7 +120,7 @@ import { ValidationService } from '../../../core/services/validation.service';
       align-items: flex-start;
       margin-bottom: var(--spacing-6);
     }
-    
+
     .back-link {
       display: inline-flex;
       align-items: center;
@@ -105,49 +128,76 @@ import { ValidationService } from '../../../core/services/validation.service';
       font-size: var(--font-size-sm);
       color: var(--color-gray-500);
       margin-bottom: var(--spacing-2);
-      
+
       &:hover {
         color: var(--color-primary);
         text-decoration: none;
       }
     }
-    
+
     .header-actions {
       display: flex;
       gap: var(--spacing-3);
     }
-    
+
+    .filters {
+      margin-bottom: var(--spacing-4);
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+      gap: var(--spacing-3);
+      align-items: end;
+    }
+
+    .filter-actions {
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-end;
+    }
+
     .loading-container {
       display: flex;
       justify-content: center;
       padding: var(--spacing-16);
     }
-    
+
     .empty-state {
       text-align: center;
-      
+
       .card-body {
         padding: var(--spacing-16);
       }
-      
+
       svg {
         color: var(--color-gray-300);
         margin-bottom: var(--spacing-4);
       }
-      
+
       h3 {
         margin-bottom: var(--spacing-2);
       }
     }
-    
+
     .table-container {
       overflow-x: auto;
     }
-    
+
     .date-cell {
       white-space: nowrap;
       color: var(--color-gray-500);
       font-size: var(--font-size-sm);
+    }
+
+    @media (max-width: 960px) {
+      .filters-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .filter-actions {
+        justify-content: flex-start;
+      }
     }
   `]
 })
@@ -157,11 +207,17 @@ export class FormResponsesComponent implements OnInit {
   fields: FormField[] = [];
   submissions: SubmissionWithValues[] = [];
   loading = true;
+  filters = {
+    fromDate: '',
+    toDate: '',
+    status: ''
+  };
 
   constructor(
     private route: ActivatedRoute,
     private formService: FormService,
     private validationService: ValidationService,
+    private auditService: AuditService,
     private cdr: ChangeDetectorRef
   ) { }
 
@@ -178,11 +234,8 @@ export class FormResponsesComponent implements OnInit {
       this.loading = true;
       this.cdr.detectChanges();
 
-      // Carregar formulário e campos
       this.form = await this.formService.getFormById(this.formId);
       this.fields = await this.formService.getFormFields(this.formId);
-
-      // Carregar submissões
       this.submissions = await this.formService.getFormSubmissions(this.formId);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -215,8 +268,39 @@ export class FormResponsesComponent implements OnInit {
     }
   }
 
+  filteredSubmissions(): SubmissionWithValues[] {
+    return this.submissions.filter(submission => {
+      const submittedAt = new Date(submission.submitted_at);
+
+      if (this.filters.fromDate) {
+        const from = new Date(`${this.filters.fromDate}T00:00:00`);
+        if (submittedAt < from) return false;
+      }
+
+      if (this.filters.toDate) {
+        const to = new Date(`${this.filters.toDate}T23:59:59`);
+        if (submittedAt > to) return false;
+      }
+
+      if (this.filters.status) {
+        const status = submission.metadata?.['status'] || '';
+        if (status !== this.filters.status) return false;
+      }
+
+      return true;
+    });
+  }
+
+  clearFilters() {
+    this.filters = {
+      fromDate: '',
+      toDate: '',
+      status: ''
+    };
+  }
+
   async deleteSubmission(submission: SubmissionWithValues) {
-    if (!confirm('Excluir esta resposta? Esta ação não pode ser desfeita.')) {
+    if (!confirm('Excluir esta resposta? Esta acao nao pode ser desfeita.')) {
       return;
     }
 
@@ -230,20 +314,16 @@ export class FormResponsesComponent implements OnInit {
   }
 
   exportCSV() {
-    if (this.submissions.length === 0 || this.fields.length === 0) return;
+    const dataset = this.filteredSubmissions();
+    if (dataset.length === 0 || this.fields.length === 0) return;
 
-    // Criar cabeçalho
     const extraHeaders = ['codigo', 'status', 'produto_id', 'produto_nome', 'cliente_nome'];
     const headers = [...extraHeaders, 'Data', ...this.fields.map(f => f.label)];
 
-    // Criar linhas
-    const rows = this.submissions.map(submission => {
+    const rows = dataset.map(submission => {
       const date = this.formatDateTime(submission.submitted_at);
-
-      // Valores dos metadados (Integração Cademí)
       const metadata = submission.metadata || {};
 
-      // Fallback para cliente_nome em submissões antigas
       let clienteNome = metadata['cliente_nome'];
       if (!clienteNome) {
         const nomeField = this.fields.find(f => f.label.toLowerCase().includes('nome'));
@@ -260,7 +340,6 @@ export class FormResponsesComponent implements OnInit {
         clienteNome || ''
       ];
 
-      // Valores dos campos dinâmicos
       const fieldValues = this.fields.map(field => {
         const value = submission.values[field.id] || '';
         return this.formatValue(value, field.field_type);
@@ -269,21 +348,30 @@ export class FormResponsesComponent implements OnInit {
       return [...extraValues, date, ...fieldValues];
     });
 
-    // Converter para CSV (usando ponto e vírgula como separador comum para Excel)
     const csvContent = [
       headers.join(';'),
       ...rows.map(row => row.map(cell => {
-        // Escapar aspas duplas e garantir string
         const cellStr = cell ? String(cell).replace(/"/g, '""') : '';
         return `"${cellStr}"`;
       }).join(';'))
     ].join('\n');
 
-    // Criar e baixar arquivo
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `${this.form?.slug || 'respostas'}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+
+    this.auditService.log({
+      action: 'responses_exported',
+      entityType: 'form',
+      entityId: this.form?.id || null,
+      metadata: {
+        filtered_count: dataset.length,
+        from_date: this.filters.fromDate || null,
+        to_date: this.filters.toDate || null,
+        status: this.filters.status || null
+      }
+    }).catch(() => null);
   }
 }

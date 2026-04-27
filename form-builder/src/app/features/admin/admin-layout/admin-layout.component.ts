@@ -8,12 +8,11 @@ import { RouterModule } from '@angular/router';
     imports: [CommonModule, RouterModule],
     template: `
     <div class="admin-layout">
-      <!-- Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-header">
           <h1 class="logo">Form Builder</h1>
         </div>
-        
+
         <nav class="sidebar-nav">
           <a routerLink="/admin/forms" routerLinkActive="active" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -23,16 +22,42 @@ import { RouterModule } from '@angular/router';
               <line x1="16" y1="17" x2="8" y2="17"></line>
               <polyline points="10 9 9 9 8 9"></polyline>
             </svg>
-            <span>Formulários</span>
+            <span>Formularios</span>
+          </a>
+
+          <a routerLink="/admin/templates" routerLinkActive="active" class="nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 7h-9"></path>
+              <path d="M14 17H5"></path>
+              <circle cx="17" cy="17" r="3"></circle>
+              <circle cx="7" cy="7" r="3"></circle>
+            </svg>
+            <span>Modelos</span>
+          </a>
+
+          <a routerLink="/admin/analytics" routerLinkActive="active" class="nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v18h18"></path>
+              <path d="m19 9-5 5-4-4-3 3"></path>
+            </svg>
+            <span>Analytics</span>
+          </a>
+
+          <a routerLink="/admin/experiments" routerLinkActive="active" class="nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7" cy="12" r="3"></circle>
+              <circle cx="17" cy="12" r="3"></circle>
+              <line x1="10" y1="12" x2="14" y2="12"></line>
+            </svg>
+            <span>A/B Tests</span>
           </a>
         </nav>
-        
+
         <div class="sidebar-footer">
           <span class="version">v1.0.0</span>
         </div>
       </aside>
-      
-      <!-- Main Content -->
+
       <main class="main-content">
         <router-outlet></router-outlet>
       </main>
@@ -43,7 +68,7 @@ import { RouterModule } from '@angular/router';
       display: flex;
       min-height: 100vh;
     }
-    
+
     .sidebar {
       width: 260px;
       background-color: var(--color-gray-900);
@@ -56,24 +81,24 @@ import { RouterModule } from '@angular/router';
       bottom: 0;
       z-index: var(--z-fixed);
     }
-    
+
     .sidebar-header {
       padding: var(--spacing-6);
       border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .logo {
       font-size: var(--font-size-xl);
       font-weight: var(--font-weight-bold);
       color: var(--color-white);
       margin: 0;
     }
-    
+
     .sidebar-nav {
       flex: 1;
       padding: var(--spacing-4);
     }
-    
+
     .nav-item {
       display: flex;
       align-items: center;
@@ -84,29 +109,29 @@ import { RouterModule } from '@angular/router';
       border-radius: var(--border-radius-md);
       transition: all var(--transition-fast);
       margin-bottom: var(--spacing-1);
-      
+
       &:hover {
         color: var(--color-white);
         background-color: rgba(255, 255, 255, 0.1);
         text-decoration: none;
       }
-      
+
       &.active {
         color: var(--color-white);
         background-color: var(--color-primary);
       }
     }
-    
+
     .sidebar-footer {
       padding: var(--spacing-4);
       border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
+
     .version {
       font-size: var(--font-size-xs);
       color: var(--color-gray-500);
     }
-    
+
     .main-content {
       flex: 1;
       margin-left: 260px;

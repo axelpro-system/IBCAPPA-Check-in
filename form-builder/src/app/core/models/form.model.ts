@@ -139,4 +139,5 @@ export interface CreateFieldDTO {
 export interface SubmitFormDTO {
     form_id: string;
     values: Record<string, string>; // field_id -> value
+    metadata?: Record<string, any>;
 }

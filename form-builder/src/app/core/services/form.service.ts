@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
+import { AuditService } from './audit.service';
 import {
     Form,
     FormField,
@@ -16,7 +17,10 @@ import {
 })
 export class FormService {
 
-    constructor(private supabase: SupabaseService) { }
+    constructor(
+        private supabase: SupabaseService,
+        private auditService: AuditService
+    ) { }
 
     // =============================================
     // FORMS - CRUD
@@ -126,10 +130,17 @@ export class FormService {
             .single();
 
         if (error) throw error;
+        this.auditService.log({
+            action: 'form_created',
+            entityType: 'form',
+            entityId: data.id,
+            after: data
+        }).catch(() => null);
         return data;
     }
 
     async updateForm(id: string, updates: Partial<Form>): Promise<Form> {
+        const before = await this.getFormById(id);
         const { data, error } = await this.supabase.client
             .from('forms')
             .update(updates)
@@ -138,24 +149,56 @@ export class FormService {
             .single();
 
         if (error) throw error;
+        this.auditService.log({
+            action: 'form_updated',
+            entityType: 'form',
+            entityId: data.id,
+            before,
+            after: data
+        }).catch(() => null);
         return data;
     }
 
     async deleteForm(id: string): Promise<void> {
+        const before = await this.getFormById(id);
         const { error } = await this.supabase.client
             .from('forms')
             .delete()
             .eq('id', id);
 
         if (error) throw error;
+        this.auditService.log({
+            action: 'form_deleted',
+            entityType: 'form',
+            entityId: id,
+            before
+        }).catch(() => null);
     }
 
     async publishForm(id: string): Promise<Form> {
-        return this.updateForm(id, { status: 'published' });
+        const before = await this.getFormById(id);
+        const published = await this.updateForm(id, { status: 'published' });
+        this.auditService.log({
+            action: 'form_published',
+            entityType: 'form',
+            entityId: id,
+            before,
+            after: published
+        }).catch(() => null);
+        return published;
     }
 
     async archiveForm(id: string): Promise<Form> {
-        return this.updateForm(id, { status: 'archived' });
+        const before = await this.getFormById(id);
+        const archived = await this.updateForm(id, { status: 'archived' });
+        this.auditService.log({
+            action: 'form_archived',
+            entityType: 'form',
+            entityId: id,
+            before,
+            after: archived
+        }).catch(() => null);
+        return archived;
     }
 
     async createFromTemplate(template: any): Promise<Form> {
@@ -272,10 +315,24 @@ export class FormService {
             data.logic = data.validation._logic;
         }
 
+        this.auditService.log({
+            action: 'field_created',
+            entityType: 'form_field',
+            entityId: data.id,
+            after: data,
+            metadata: { form_id: data.form_id }
+        }).catch(() => null);
+
         return data;
     }
 
     async updateField(id: string, updates: Partial<FormField>): Promise<FormField> {
+        const before = await this.supabase.client
+            .from('form_fields')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
         const payload: any = { ...updates };
 
         // Move logic to validation object to avoid schema error
@@ -305,16 +362,38 @@ export class FormService {
             data.logic = data.validation._logic;
         }
 
+        this.auditService.log({
+            action: 'field_updated',
+            entityType: 'form_field',
+            entityId: data.id,
+            before: before.data || null,
+            after: data,
+            metadata: { form_id: data.form_id }
+        }).catch(() => null);
+
         return data;
     }
 
     async deleteField(id: string): Promise<void> {
+        const before = await this.supabase.client
+            .from('form_fields')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+
         const { error } = await this.supabase.client
             .from('form_fields')
             .delete()
             .eq('id', id);
 
         if (error) throw error;
+        this.auditService.log({
+            action: 'field_deleted',
+            entityType: 'form_field',
+            entityId: id,
+            before: before.data || null,
+            metadata: { form_id: before.data?.['form_id'] || null }
+        }).catch(() => null);
     }
 
     async reorderFields(formId: string, fieldIds: string[]): Promise<void> {
@@ -358,7 +437,7 @@ export class FormService {
             }
         }
 
-        const metadata: any = {};
+        const metadata: any = { ...(submission.metadata || {}) };
         if (form?.settings?.cademiEnabled) {
             metadata.codigo = Date.now().toString();
             metadata.status = form.settings.cademiStatus || 'aprovado';

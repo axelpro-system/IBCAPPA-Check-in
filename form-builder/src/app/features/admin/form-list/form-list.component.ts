@@ -24,6 +24,33 @@ import { Form } from '../../../core/models/form.model';
       </a>
     </div>
 
+    <div class="stats-grid" *ngIf="!loading">
+      <div class="stat-card card">
+        <div class="card-body">
+          <p class="stat-label">Formularios</p>
+          <h3>{{ stats.totalForms }}</h3>
+        </div>
+      </div>
+      <div class="stat-card card">
+        <div class="card-body">
+          <p class="stat-label">Publicados</p>
+          <h3>{{ stats.publishedForms }}</h3>
+        </div>
+      </div>
+      <div class="stat-card card">
+        <div class="card-body">
+          <p class="stat-label">Rascunhos</p>
+          <h3>{{ stats.draftForms }}</h3>
+        </div>
+      </div>
+      <div class="stat-card card">
+        <div class="card-body">
+          <p class="stat-label">Respostas Totais</p>
+          <h3>{{ stats.totalSubmissions }}</h3>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading -->
     <div *ngIf="loading" class="loading-container">
       <div class="spinner spinner-lg"></div>
@@ -115,6 +142,25 @@ import { Form } from '../../../core/models/form.model';
       justify-content: center;
       padding: var(--spacing-16);
     }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--spacing-4);
+      margin-bottom: var(--spacing-6);
+    }
+
+    .stat-card h3 {
+      margin: 0;
+      font-size: 1.75rem;
+      color: var(--color-gray-900);
+    }
+
+    .stat-label {
+      margin: 0 0 var(--spacing-2);
+      color: var(--color-gray-500);
+      font-size: var(--font-size-sm);
+    }
     
     .empty-state {
       text-align: center;
@@ -171,11 +217,23 @@ import { Form } from '../../../core/models/form.model';
       gap: var(--spacing-2);
       align-items: center;
     }
+
+    @media (max-width: 980px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   `]
 })
 export class FormListComponent implements OnInit {
   forms: Form[] = [];
   loading = true;
+  stats = {
+    totalForms: 0,
+    publishedForms: 0,
+    draftForms: 0,
+    totalSubmissions: 0
+  };
 
   constructor(
     private formService: FormService,
@@ -195,6 +253,14 @@ export class FormListComponent implements OnInit {
       const startTime = Date.now();
 
       this.forms = await this.formService.getForms();
+      this.stats.totalForms = this.forms.length;
+      this.stats.publishedForms = this.forms.filter(f => f.status === 'published').length;
+      this.stats.draftForms = this.forms.filter(f => f.status === 'draft').length;
+
+      const submissionCounts = await Promise.all(
+        this.forms.map(form => this.formService.getSubmissionCount(form.id).catch(() => 0))
+      );
+      this.stats.totalSubmissions = submissionCounts.reduce((sum, count) => sum + count, 0);
 
       const elapsed = Date.now() - startTime;
       console.log(`[FormList] Carregamento concluído em ${elapsed}ms`);
@@ -236,6 +302,10 @@ export class FormListComponent implements OnInit {
     try {
       await this.formService.deleteForm(form.id);
       this.forms = this.forms.filter(f => f.id !== form.id);
+      this.stats.totalForms = this.forms.length;
+      this.stats.publishedForms = this.forms.filter(f => f.status === 'published').length;
+      this.stats.draftForms = this.forms.filter(f => f.status === 'draft').length;
+      await this.loadForms();
     } catch (error) {
       console.error('Erro ao excluir formulário:', error);
       alert('Erro ao excluir formulário. Tente novamente.');

@@ -1,8 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormService } from '../../../core/services/form.service';
 import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templates';
+import { FormTemplateService, SavedFormTemplate } from '../../../core/services/form-template.service';
 
 @Component({
     selector: 'app-form-template-gallery',
@@ -12,34 +13,38 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
     <div class="gallery-container">
       <header class="gallery-header">
         <div class="header-content">
-          <h1>Criar Novo Formulário</h1>
-          <p>Escolha um modelo pronto ou comece do zero para criar sua pesquisa.</p>
+          <h1>Criar Novo Formulario</h1>
+          <p>Escolha um modelo pronto, um modelo salvo ou comece do zero.</p>
         </div>
-        <a routerLink="/admin/forms" class="btn btn-secondary btn-sm">
-          <i class="bi bi-arrow-left mr-1"></i> Voltar
-        </a>
+        <div class="header-actions">
+          <a routerLink="/admin/templates" class="btn btn-secondary btn-sm">
+            Gerenciar Modelos
+          </a>
+          <a routerLink="/admin/forms" class="btn btn-secondary btn-sm">
+            Voltar
+          </a>
+        </div>
       </header>
 
       <div class="templates-grid">
-        <!-- Começar do Zero -->
         <div class="template-card blank-card" (click)="createBlank()">
           <div class="card-icon">
             <i class="bi bi-plus-lg"></i>
           </div>
           <div class="card-body">
-            <h3>Começar do Zero</h3>
-            <p>Crie um formulário vazio e adicione os campos que desejar.</p>
+            <h3>Comecar do Zero</h3>
+            <p>Crie um formulario vazio e adicione os campos que desejar.</p>
           </div>
           <div class="card-footer">
             <span class="btn-text">Criar Vazio <i class="bi bi-chevron-right ml-1"></i></span>
           </div>
         </div>
 
-        <!-- Templates -->
-        <div *ngFor="let template of templates()" 
-             class="template-card" 
-             [class.loading]="creating() === template.id"
-             (click)="createFromTemplate(template)">
+        <div
+          *ngFor="let template of templates()"
+          class="template-card"
+          [class.loading]="creating() === template.id"
+          (click)="createFromTemplate(template)">
           <div class="card-icon" [style.background-color]="template.form.settings?.primaryColor + '15'" [style.color]="template.form.settings?.primaryColor">
             <i [class]="'bi ' + template.icon"></i>
           </div>
@@ -50,7 +55,28 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
           <div class="card-footer">
             <span class="btn-text">Usar Modelo <i class="bi bi-chevron-right ml-1"></i></span>
           </div>
-          
+
+          <div *ngIf="creating() === template.id" class="card-overlay">
+            <div class="spinner spinner-white"></div>
+          </div>
+        </div>
+
+        <div
+          *ngFor="let template of savedTemplates()"
+          class="template-card"
+          [class.loading]="creating() === template.id"
+          (click)="createFromSavedTemplate(template)">
+          <div class="card-icon" style="background-color: #2563eb15; color: #2563eb;">
+            <i [class]="'bi ' + template.icon"></i>
+          </div>
+          <div class="card-body">
+            <h3>{{ template.name }}</h3>
+            <p>{{ template.description || 'Modelo personalizado salvo' }}</p>
+          </div>
+          <div class="card-footer">
+            <span class="btn-text">Usar Modelo Salvo <i class="bi bi-chevron-right ml-1"></i></span>
+          </div>
+
           <div *ngIf="creating() === template.id" class="card-overlay">
             <div class="spinner spinner-white"></div>
           </div>
@@ -70,16 +96,21 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
       justify-content: space-between;
       align-items: flex-start;
       margin-bottom: var(--spacing-10);
-      
+
       h1 {
         margin-bottom: var(--spacing-1);
         font-size: 2rem;
       }
-      
+
       p {
         color: var(--color-gray-500);
         font-size: 1.1rem;
       }
+    }
+
+    .header-actions {
+      display: flex;
+      gap: var(--spacing-2);
     }
 
     .templates-grid {
@@ -106,7 +137,7 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
         transform: translateY(-8px);
         border-color: var(--color-primary);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        
+
         .card-footer .btn-text {
           color: var(--color-primary);
           padding-left: 4px;
@@ -117,12 +148,12 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
         background: linear-gradient(135deg, var(--color-white) 0%, var(--color-gray-50) 100%);
         border: 2px dashed var(--color-gray-300);
         box-shadow: none;
-        
+
         .card-icon {
           background-color: var(--color-gray-100);
           color: var(--color-gray-600);
         }
-        
+
         &:hover {
           border-color: var(--color-primary);
           background: var(--color-white);
@@ -148,14 +179,14 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
 
       .card-body {
         flex: 1;
-        
+
         h3 {
           font-size: 1.25rem;
           font-weight: var(--font-weight-bold);
           margin-bottom: var(--spacing-2);
           color: var(--color-gray-900);
         }
-        
+
         p {
           font-size: var(--font-size-sm);
           color: var(--color-gray-500);
@@ -167,7 +198,7 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
         margin-top: var(--spacing-6);
         padding-top: var(--spacing-4);
         border-top: 1px solid var(--color-gray-100);
-        
+
         .btn-text {
           font-weight: var(--font-weight-semibold);
           font-size: var(--font-size-sm);
@@ -202,12 +233,18 @@ import { FORM_TEMPLATES, FormTemplate } from '../../../core/constants/form-templ
     }
   `]
 })
-export class FormTemplateGalleryComponent {
+export class FormTemplateGalleryComponent implements OnInit {
     private router = inject(Router);
     private formService = inject(FormService);
+    private savedTemplateService = inject(FormTemplateService);
 
     templates = signal<FormTemplate[]>(FORM_TEMPLATES);
+    savedTemplates = signal<SavedFormTemplate[]>([]);
     creating = signal<string | null>(null);
+
+    async ngOnInit() {
+        this.savedTemplates.set(await this.savedTemplateService.getTemplates());
+    }
 
     createBlank() {
         this.router.navigate(['/admin/forms/new/editor']);
@@ -221,8 +258,23 @@ export class FormTemplateGalleryComponent {
             const form = await this.formService.createFromTemplate(template);
             this.router.navigate(['/admin/forms', form.id]);
         } catch (error) {
-            console.error('Erro ao criar formulário:', error);
-            alert('Erro ao criar formulário a partir do modelo.');
+            console.error('Erro ao criar formulario:', error);
+            alert('Erro ao criar formulario a partir do modelo.');
+        } finally {
+            this.creating.set(null);
+        }
+    }
+
+    async createFromSavedTemplate(template: SavedFormTemplate) {
+        if (this.creating()) return;
+
+        try {
+            this.creating.set(template.id);
+            const form = await this.formService.createFromTemplate(template);
+            this.router.navigate(['/admin/forms', form.id]);
+        } catch (error) {
+            console.error('Erro ao criar formulario salvo:', error);
+            alert('Erro ao criar formulario a partir do modelo salvo.');
         } finally {
             this.creating.set(null);
         }

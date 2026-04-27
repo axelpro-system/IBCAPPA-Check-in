@@ -24,6 +24,18 @@ export const routes: Routes = [
                 loadComponent: () => import('./features/admin/form-list/form-list.component').then(m => m.FormListComponent)
             },
             {
+                path: 'templates',
+                loadComponent: () => import('./features/admin/form-template-manager/form-template-manager.component').then(m => m.FormTemplateManagerComponent)
+            },
+            {
+                path: 'analytics',
+                loadComponent: () => import('./features/admin/analytics-dashboard/analytics-dashboard.component').then(m => m.AnalyticsDashboardComponent)
+            },
+            {
+                path: 'experiments',
+                loadComponent: () => import('./features/admin/ab-experiments/ab-experiments.component').then(m => m.AbExperimentsComponent)
+            },
+            {
                 path: 'forms/new',
                 loadComponent: () => import('./features/admin/form-template-gallery/form-template-gallery.component').then(m => m.FormTemplateGalleryComponent)
             },

@@ -5,6 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { FormService } from '../../../core/services/form.service';
 import { ValidationService } from '../../../core/services/validation.service';
 import { Form, FormField } from '../../../core/models/form.model';
+import { AnalyticsService } from '../../../core/services/analytics.service';
+import { AbAssignmentContext, AbTestingService } from '../../../core/services/ab-testing.service';
 
 @Component({
   selector: 'app-form-view',
@@ -53,6 +55,16 @@ import { Form, FormField } from '../../../core/models/form.model';
 
         <!-- Form Fields -->
         <form (ngSubmit)="submitForm()" #formRef="ngForm">
+          <input
+            type="text"
+            tabindex="-1"
+            autocomplete="off"
+            aria-hidden="true"
+            class="anti-spam-honeypot"
+            [ngModel]="honeypot()"
+            (ngModelChange)="honeypot.set($event)"
+            name="websiteField">
+
           <div *ngFor="let field of visibleFields(); let i = index" 
                class="form-group fade-in"
                [style.animation-delay]="(i * 0.1) + 's'">
@@ -467,7 +479,16 @@ import { Form, FormField } from '../../../core/models/form.model';
       margin-top: var(--spacing-4);
       margin-bottom: 0;
     }
-    
+
+    .anti-spam-honeypot {
+      position: absolute !important;
+      opacity: 0;
+      pointer-events: none;
+      height: 0;
+      width: 0;
+      left: -9999px;
+    }
+
     @media (max-width: 640px) {
       .form-page {
         padding: var(--spacing-4);
@@ -482,6 +503,16 @@ import { Form, FormField } from '../../../core/models/form.model';
         gap: var(--spacing-2);
       }
     }
+
+    @media (max-width: 480px) {
+      .form-container {
+        padding: var(--spacing-4);
+      }
+
+      .form-header h1 {
+        font-size: 1.4rem;
+      }
+    }
   `]
 })
 export class FormViewComponent implements OnInit {
@@ -489,6 +520,8 @@ export class FormViewComponent implements OnInit {
   private router = inject(Router);
   private formService = inject(FormService);
   private validationService = inject(ValidationService);
+  private analyticsService = inject(AnalyticsService);
+  private abTestingService = inject(AbTestingService);
 
   loading = signal(true);
   submitting = signal(false);
@@ -496,6 +529,10 @@ export class FormViewComponent implements OnInit {
   fields = signal<FormField[]>([]);
   values = signal<Record<string, string>>({});
   errors = signal<Record<string, string>>({});
+  honeypot = signal('');
+  started = signal(false);
+  trackedFieldFocus = new Set<string>();
+  abContext = signal<AbAssignmentContext | null>(null);
 
   // Signal computado para campos visíveis
   visibleFields = computed(() => {
@@ -574,12 +611,27 @@ export class FormViewComponent implements OnInit {
     try {
       this.loading.set(true);
 
-      const formData = await this.formService.getFormBySlug(slug);
-      this.form.set(formData);
+          const formData = await this.formService.getFormBySlug(slug);
+          this.form.set(formData);
 
-      if (formData) {
-        const formFields = await this.formService.getFormFields(formData.id);
-        this.fields.set(formFields);
+          if (formData) {
+          const assignment = await this.abTestingService.resolveAssignment(
+            formData.id,
+            this.analyticsService.getVisitorId(),
+            this.analyticsService.getSessionId()
+          );
+          this.abContext.set(assignment);
+
+          this.analyticsService.trackFormEvent({
+              eventType: 'view_form',
+              formId: formData.id,
+              pageSlug: formData.slug,
+              metadata: this.getAbMetadata()
+            }).catch(() => null);
+
+            const formFields = await this.formService.getFormFields(formData.id);
+            this.applyVariantOverrides(formFields);
+            this.fields.set(formFields);
 
         // Inicializar valores
         const initialValues: Record<string, string> = {};
@@ -614,12 +666,54 @@ export class FormViewComponent implements OnInit {
   }
 
   updateValue(fieldId: string, value: string) {
+    this.markFormStart();
+    const currentForm = this.form();
+    if (currentForm) {
+      const currentField = this.fields().find(f => f.id === fieldId);
+      if (currentField && !this.trackedFieldFocus.has(fieldId)) {
+        this.trackedFieldFocus.add(fieldId);
+        this.analyticsService.trackFormEvent({
+          eventType: 'field_focus',
+          formId: currentForm.id,
+          fieldId,
+          fieldLabel: currentField.label,
+          pageSlug: currentForm.slug,
+          metadata: this.getAbMetadata()
+        }).catch(() => null);
+      }
+      this.analyticsService.trackFormEvent({
+        eventType: 'field_change',
+        formId: currentForm.id,
+        fieldId,
+        fieldLabel: currentField?.label || undefined,
+        pageSlug: currentForm.slug,
+        metadata: {
+          ...this.getAbMetadata(),
+          value_length: String(value || '').length
+        }
+      }).catch(() => null);
+    }
+
     this.values.update(v => ({ ...v, [fieldId]: value }));
   }
 
   validateField(field: FormField): boolean {
     const rawValue = this.values()[field.id];
     const value = (rawValue !== undefined && rawValue !== null) ? String(rawValue).trim() : '';
+    const currentForm = this.form();
+    if (currentForm) {
+      this.analyticsService.trackFormEvent({
+        eventType: 'field_blur',
+        formId: currentForm.id,
+        fieldId: field.id,
+        fieldLabel: field.label,
+        pageSlug: currentForm.slug,
+        metadata: {
+          ...this.getAbMetadata(),
+          value_length: value.length
+        }
+      }).catch(() => null);
+    }
 
     // Campo obrigatório
     if (field.required && !value) {
@@ -783,6 +877,22 @@ export class FormViewComponent implements OnInit {
   }
 
   async submitForm() {
+    if (this.honeypot().trim().length > 0) {
+      return;
+    }
+
+    const currentForm = this.form();
+    const cooldownKey = `form_submit_${currentForm?.slug || 'default'}`;
+    const lastSubmissionAt = Number(localStorage.getItem(cooldownKey) || '0');
+    const now = Date.now();
+    const cooldownMs = 30000;
+
+    if (lastSubmissionAt > 0 && now - lastSubmissionAt < cooldownMs) {
+      const remainingSeconds = Math.ceil((cooldownMs - (now - lastSubmissionAt)) / 1000);
+      alert(`Aguarde ${remainingSeconds}s antes de enviar novamente.`);
+      return;
+    }
+
     const activeFields = this.visibleFields();
 
     // Limpar erros de campos que não estão mais visíveis
@@ -824,8 +934,19 @@ export class FormViewComponent implements OnInit {
 
       await this.formService.submitForm({
         form_id: formId,
-        values: submissionData
+        values: submissionData,
+        metadata: this.getAbMetadata()
       });
+      this.analyticsService.trackFormEvent({
+        eventType: 'submit_success',
+        formId,
+        pageSlug: this.form()?.slug || undefined,
+        metadata: {
+          ...this.getAbMetadata(),
+          visible_fields: activeFields.length
+        }
+      }).catch(() => null);
+      localStorage.setItem(cooldownKey, String(now));
       this.router.navigate(['/f', this.form()?.slug, 'success']);
     } catch (error) {
       console.error('Erro ao enviar formulário:', error);
@@ -833,6 +954,56 @@ export class FormViewComponent implements OnInit {
     } finally {
       this.submitting.set(false);
     }
+  }
+
+  private applyVariantOverrides(formFields: FormField[]) {
+    const context = this.abContext();
+    const config = context?.variant?.config || {};
+    if (!context) return;
+
+    if (config['title']) {
+      this.form.update(current => current ? { ...current, title: String(config['title']) } : current);
+    }
+
+    if (config['description']) {
+      this.form.update(current => current ? { ...current, description: String(config['description']) } : current);
+    }
+
+    const fieldOverrides = config['field_overrides'] as Record<string, Partial<FormField>> | undefined;
+    if (fieldOverrides) {
+      for (const field of formFields) {
+        const override = fieldOverrides[field.id];
+        if (!override) continue;
+        field.label = override.label || field.label;
+        field.placeholder = override.placeholder || field.placeholder;
+        field.help_text = override.help_text || field.help_text;
+      }
+    }
+  }
+
+  private getAbMetadata(): Record<string, string> {
+    const context = this.abContext();
+    if (!context) return {};
+
+    return {
+      experiment_id: context.experiment.id,
+      experiment_name: context.experiment.name,
+      variant_id: context.variant.id,
+      variant_name: context.variant.name
+    };
+  }
+
+  private markFormStart() {
+    const currentForm = this.form();
+    if (!currentForm || this.started()) return;
+
+    this.started.set(true);
+    this.analyticsService.trackFormEvent({
+      eventType: 'start_form',
+      formId: currentForm.id,
+      pageSlug: currentForm.slug,
+      metadata: this.getAbMetadata()
+    }).catch(() => null);
   }
 }
 
