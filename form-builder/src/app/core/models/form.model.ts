@@ -9,6 +9,7 @@ export interface Form {
     slug: string;
     status: 'draft' | 'published' | 'archived';
     settings: FormSettings;
+    tags?: string[];
     created_by?: string;
     created_at: string;
     updated_at: string;
@@ -119,6 +120,7 @@ export interface CreateFormDTO {
     slug: string;
     status?: 'draft' | 'published' | 'archived';
     settings?: FormSettings;
+    tags?: string[];
 }
 
 // Interface para criação de campo

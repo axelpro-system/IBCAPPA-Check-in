@@ -101,6 +101,27 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
               </select>
             </div>
 
+            <div class="form-group">
+              <label class="form-label">Tags / Categorias</label>
+              <div class="tags-input-container">
+                <div class="selected-tags">
+                  <span *ngFor="let tag of formData().tags; let i = index" class="tag-badge">
+                    {{ tag }}
+                    <button type="button" class="tag-remove" (click)="removeTag(i)">×</button>
+                  </span>
+                </div>
+                <div class="tag-input-row">
+                  <input type="text" 
+                         class="form-input" 
+                         [(ngModel)]="newTag"
+                         (keydown.enter)="addTag()"
+                         placeholder="Adicionar tag e pressionar Enter">
+                  <button type="button" class="btn btn-secondary btn-sm" (click)="addTag()">+</button>
+                </div>
+              </div>
+              <p class="form-help">Ex: Sabatina, Evolute, NPS, Pesquisa</p>
+            </div>
+
             <div class="visual-settings">
               <h3>Personalização Visual</h3>
               
@@ -474,6 +495,49 @@ import { Form, FormField, FieldType, CreateFieldDTO } from '../../../core/models
         border-radius: 0 var(--border-radius-md) var(--border-radius-md) 0;
       }
     }
+
+    .tags-input-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-2);
+    }
+
+    .selected-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-2);
+    }
+
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background-color: var(--color-primary);
+      color: white;
+      border-radius: var(--border-radius-md);
+      font-size: var(--font-size-sm);
+    }
+
+    .tag-remove {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      font-size: 16px;
+      opacity: 0.8;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+
+    .tag-input-row {
+      display: flex;
+      gap: var(--spacing-2);
+    }
     
     .card-header {
       display: flex;
@@ -671,6 +735,7 @@ export class FormEditorComponent implements OnInit {
     description: '',
     slug: '',
     status: 'draft' as 'draft' | 'published' | 'archived',
+    tags: [] as string[],
     settings: {
       cademiEnabled: false,
       cademiProductId: '',
@@ -681,6 +746,8 @@ export class FormEditorComponent implements OnInit {
       backgroundOpacity: 100
     }
   });
+
+  newTag = '';
 
   showAddField = signal(false);
   editingField = signal<FormField | null>(null);
@@ -723,6 +790,7 @@ export class FormEditorComponent implements OnInit {
           description: formResult.description || '',
           slug: formResult.slug,
           status: formResult.status,
+          tags: formResult.tags || [],
           settings: {
             cademiEnabled: formResult.settings?.cademiEnabled || false,
             cademiProductId: formResult.settings?.cademiProductId || '',
@@ -771,6 +839,20 @@ export class FormEditorComponent implements OnInit {
     if (!currentData.slug && currentData.title) {
       this.updateFormData('slug', this.formService.generateSlug(currentData.title));
     }
+  }
+
+  addTag() {
+    const tag = this.newTag.trim();
+    if (tag && !this.formData().tags.includes(tag)) {
+      this.updateFormData('tags', [...this.formData().tags, tag]);
+    }
+    this.newTag = '';
+  }
+
+  removeTag(index: number) {
+    const tags = [...this.formData().tags];
+    tags.splice(index, 1);
+    this.updateFormData('tags', tags);
   }
 
   getFormUrl(): string {

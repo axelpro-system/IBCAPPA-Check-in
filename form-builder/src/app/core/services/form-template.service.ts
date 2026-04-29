@@ -9,6 +9,7 @@ export interface SavedFormTemplate {
     icon: string;
     created_at: string;
     source_form_id: string;
+    tags?: string[];
     form: CreateFormDTO;
     fields: Omit<CreateFieldDTO, 'form_id'>[];
 }
@@ -58,6 +59,7 @@ export class FormTemplateService {
             icon: row.icon || 'bi-journal-text',
             created_at: row.created_at,
             source_form_id: row.source_form_id,
+            tags: row.tags || [],
             form: row.form_data,
             fields: row.fields_data || []
         }));
@@ -79,6 +81,7 @@ export class FormTemplateService {
                 description: template.description,
                 icon: template.icon,
                 source_form_id: template.source_form_id,
+                tags: template.tags || [],
                 form_data: template.form,
                 fields_data: template.fields,
                 created_by: user.id
@@ -116,7 +119,8 @@ export class FormTemplateService {
         name: string,
         description: string,
         sourceForm: Form,
-        sourceFields: FormField[]
+        sourceFields: FormField[],
+        tags: string[] = []
     ): SavedFormTemplate {
         const templateId = `custom-${Date.now().toString(36)}`;
 
@@ -127,12 +131,14 @@ export class FormTemplateService {
             icon: 'bi-journal-text',
             created_at: new Date().toISOString(),
             source_form_id: sourceForm.id,
+            tags: tags,
             form: {
                 title: sourceForm.title,
                 description: sourceForm.description || '',
                 slug: sourceForm.slug || this.generateSlug(name),
                 status: 'draft',
-                settings: sourceForm.settings || {}
+                settings: sourceForm.settings || {},
+                tags: tags
             },
             fields: sourceFields.map(field => ({
                 label: field.label,

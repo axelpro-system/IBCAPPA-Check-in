@@ -5,6 +5,7 @@ export interface FormTemplate {
     name: string;
     description: string;
     icon: string;
+    tags?: string[];
     form: CreateFormDTO;
     fields: Omit<CreateFieldDTO, 'form_id'>[];
 }

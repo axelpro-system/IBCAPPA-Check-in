@@ -51,6 +51,9 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
           <div class="card-body">
             <h3>{{ template.name }}</h3>
             <p>{{ template.description }}</p>
+            <div class="template-tags" *ngIf="template.tags?.length">
+              <span *ngFor="let tag of template.tags" class="tag-pill">{{ tag }}</span>
+            </div>
           </div>
           <div class="card-footer">
             <span class="btn-text">Usar Modelo <i class="bi bi-chevron-right ml-1"></i></span>
@@ -72,6 +75,9 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
           <div class="card-body">
             <h3>{{ template.name }}</h3>
             <p>{{ template.description || 'Modelo personalizado salvo' }}</p>
+            <div class="template-tags" *ngIf="template.tags?.length">
+              <span *ngFor="let tag of template.tags" class="tag-pill">{{ tag }}</span>
+            </div>
           </div>
           <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
             <span class="btn-text">Usar Modelo Salvo <i class="bi bi-chevron-right ml-1"></i></span>
@@ -222,6 +228,22 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
         z-index: 10;
         backdrop-filter: blur(2px);
       }
+    }
+
+    .template-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: var(--spacing-3);
+    }
+
+    .tag-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      background-color: var(--color-gray-100);
+      color: var(--color-gray-600);
+      border-radius: 12px;
+      font-size: var(--font-size-xs);
     }
 
     .spinner-white {

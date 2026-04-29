@@ -59,6 +59,28 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
             <p class="form-help">O modelo vai copiar configuracoes e campos do formulario selecionado.</p>
           </div>
 
+          <div class="form-group">
+            <label class="form-label">Tags / Categorias</label>
+            <div class="tags-input-container">
+              <div class="selected-tags">
+                <span *ngFor="let tag of templateData().tags; let i = index" class="tag-badge">
+                  {{ tag }}
+                  <button type="button" class="tag-remove" (click)="removeTag(i)">×</button>
+                </span>
+              </div>
+              <div class="tag-input-row">
+                <input
+                  type="text"
+                  class="form-input"
+                  [(ngModel)]="newTag"
+                  (keydown.enter)="addTag()"
+                  placeholder="Adicionar tag e pressionar Enter">
+                <button type="button" class="btn btn-secondary btn-sm" (click)="addTag()">+</button>
+              </div>
+            </div>
+            <p class="form-help">Ex: Sabatina, Evolute, NPS</p>
+          </div>
+
           <button
             class="btn btn-primary"
             [disabled]="saving() || loadingForms()"
@@ -157,6 +179,49 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
       min-width: 120px;
     }
 
+    .tags-input-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-2);
+    }
+
+    .selected-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-2);
+    }
+
+    .tag-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background-color: var(--color-primary);
+      color: white;
+      border-radius: var(--border-radius-md);
+      font-size: var(--font-size-sm);
+    }
+
+    .tag-remove {
+      background: none;
+      border: none;
+      color: white;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      font-size: 16px;
+      opacity: 0.8;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+
+    .tag-input-row {
+      display: flex;
+      gap: var(--spacing-2);
+    }
+
     @media (max-width: 980px) {
       .manager-grid {
         grid-template-columns: 1fr;
@@ -177,8 +242,11 @@ export class FormTemplateManagerComponent implements OnInit {
     templateData = signal({
         name: '',
         description: '',
-        sourceFormId: ''
+        sourceFormId: '',
+        tags: [] as string[]
     });
+
+    newTag = '';
 
     async ngOnInit() {
         await this.loadForms();
@@ -187,6 +255,20 @@ export class FormTemplateManagerComponent implements OnInit {
 
     updateTemplateData(key: string, value: string) {
         this.templateData.update(data => ({ ...data, [key]: value }));
+    }
+
+    addTag() {
+        const tag = this.newTag.trim();
+        if (tag && !this.templateData().tags.includes(tag)) {
+            this.templateData.update(data => ({ ...data, tags: [...data.tags, tag] }));
+        }
+        this.newTag = '';
+    }
+
+    removeTag(index: number) {
+        const tags = [...this.templateData().tags];
+        tags.splice(index, 1);
+        this.templateData.update(data => ({ ...data, tags }));
     }
 
     async loadForms() {
@@ -228,7 +310,8 @@ export class FormTemplateManagerComponent implements OnInit {
                 data.name.trim(),
                 data.description.trim(),
                 sourceForm,
-                fields
+                fields,
+                data.tags
             );
 
             await this.templateService.saveTemplate(template);
@@ -236,7 +319,8 @@ export class FormTemplateManagerComponent implements OnInit {
             this.templateData.set({
                 name: '',
                 description: '',
-                sourceFormId: ''
+                sourceFormId: '',
+                tags: []
             });
         } catch (error) {
             console.error('Erro ao salvar modelo:', error);

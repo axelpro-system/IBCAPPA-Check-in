@@ -1,13 +1,14 @@
-import { Component, OnInit, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { FormService } from '../../../core/services/form.service';
 import { Form } from '../../../core/models/form.model';
 
 @Component({
   selector: 'app-form-list',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   template: `
     <div class="page-header">
       <div>
@@ -22,6 +23,19 @@ import { Form } from '../../../core/models/form.model';
         </svg>
         Novo Formulário
       </a>
+    </div>
+
+    <!-- Tag Filter -->
+    <div class="tag-filters" *ngIf="allTags.length > 0">
+      <button class="tag-filter-btn" [class.active]="!selectedTag()" (click)="filterByTag(null)">
+        Todos
+      </button>
+      <button *ngFor="let tag of allTags" 
+              class="tag-filter-btn" 
+              [class.active]="selectedTag() === tag"
+              (click)="filterByTag(tag)">
+        {{ tag }}
+      </button>
     </div>
 
     <div class="stats-grid" *ngIf="!loading">
@@ -72,11 +86,12 @@ import { Form } from '../../../core/models/form.model';
     </div>
 
     <!-- Form List -->
-    <div *ngIf="!loading && forms.length > 0" class="card">
+    <div *ngIf="!loading && filteredForms.length > 0" class="card">
       <table class="table">
         <thead>
           <tr>
             <th>Nome</th>
+            <th>Tags</th>
             <th>Status</th>
             <th>Respostas</th>
             <th>Criado em</th>
@@ -84,7 +99,7 @@ import { Form } from '../../../core/models/form.model';
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let form of forms">
+          <tr *ngFor="let form of filteredForms">
             <td>
               <div class="form-title-cell">
                 <span class="font-medium">{{ form.title }}</span>
@@ -96,6 +111,11 @@ import { Form } from '../../../core/models/form.model';
                     <line x1="10" y1="14" x2="21" y2="3"></line>
                   </svg>
                 </a>
+              </div>
+            </td>
+            <td>
+              <div class="tags-cell" *ngIf="form.tags?.length">
+                <span *ngFor="let tag of form.tags" class="tag-pill">{{ tag }}</span>
               </div>
             </td>
             <td>
@@ -135,6 +155,35 @@ import { Form } from '../../../core/models/form.model';
       justify-content: space-between;
       align-items: center;
       margin-bottom: var(--spacing-6);
+    }
+
+    .tag-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-2);
+      margin-bottom: var(--spacing-6);
+    }
+
+    .tag-filter-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--color-gray-200);
+      border-radius: var(--border-radius-md);
+      background: var(--color-white);
+      color: var(--color-gray-600);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+
+      &:hover {
+        border-color: var(--color-primary);
+        color: var(--color-primary);
+      }
+
+      &.active {
+        background: var(--color-primary);
+        color: white;
+        border-color: var(--color-primary);
+      }
     }
     
     .loading-container {
@@ -210,6 +259,21 @@ import { Form } from '../../../core/models/form.model';
         text-decoration: underline;
       }
     }
+
+    .tags-cell {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .tag-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      background-color: var(--color-gray-100);
+      color: var(--color-gray-600);
+      border-radius: 12px;
+      font-size: var(--font-size-xs);
+    }
     
     .actions-cell {
       display: flex;
@@ -228,6 +292,8 @@ import { Form } from '../../../core/models/form.model';
 export class FormListComponent implements OnInit {
   forms: Form[] = [];
   loading = true;
+  selectedTag = signal<string | null>(null);
+  allTags: string[] = [];
   stats = {
     totalForms: 0,
     publishedForms: 0,
@@ -244,6 +310,16 @@ export class FormListComponent implements OnInit {
     await this.loadForms();
   }
 
+get filteredForms(): Form[] {
+    const tag = this.selectedTag();
+    if (!tag) return this.forms;
+    return this.forms.filter(f => (f.tags || []).includes(tag));
+  }
+
+  filterByTag(tag: string | null) {
+    this.selectedTag.set(tag);
+  }
+
   async loadForms() {
     console.log('[FormList] Iniciando carregamento de formulários...');
     try {
@@ -253,6 +329,14 @@ export class FormListComponent implements OnInit {
       const startTime = Date.now();
 
       this.forms = await this.formService.getForms();
+
+      // Extract all unique tags
+      const tagSet = new Set<string>();
+      this.forms.forEach(f => {
+        (f.tags || []).forEach(tag => tagSet.add(tag));
+      });
+      this.allTags = Array.from(tagSet).sort();
+
       this.stats.totalForms = this.forms.length;
       this.stats.publishedForms = this.forms.filter(f => f.status === 'published').length;
       this.stats.draftForms = this.forms.filter(f => f.status === 'draft').length;
