@@ -73,8 +73,11 @@ import { FormTemplateService, SavedFormTemplate } from '../../../core/services/f
             <h3>{{ template.name }}</h3>
             <p>{{ template.description || 'Modelo personalizado salvo' }}</p>
           </div>
-          <div class="card-footer">
+          <div class="card-footer" style="display: flex; justify-content: space-between; align-items: center;">
             <span class="btn-text">Usar Modelo Salvo <i class="bi bi-chevron-right ml-1"></i></span>
+            <button class="btn btn-link text-error p-0 m-0" style="font-size: 1.1rem; z-index: 2; position: relative;" (click)="deleteTemplate($event, template)">
+              <i class="bi bi-trash"></i>
+            </button>
           </div>
 
           <div *ngIf="creating() === template.id" class="card-overlay">
@@ -277,6 +280,19 @@ export class FormTemplateGalleryComponent implements OnInit {
             alert('Erro ao criar formulario a partir do modelo salvo.');
         } finally {
             this.creating.set(null);
+        }
+    }
+
+    async deleteTemplate(event: Event, template: SavedFormTemplate) {
+        event.stopPropagation();
+        if (!confirm(`Excluir o modelo "${template.name}"?`)) return;
+        
+        try {
+            await this.savedTemplateService.deleteTemplate(template.id);
+            this.savedTemplates.set(await this.savedTemplateService.getTemplates());
+        } catch (error) {
+            console.error('Erro ao excluir modelo:', error);
+            alert('Erro ao excluir modelo.');
         }
     }
 }

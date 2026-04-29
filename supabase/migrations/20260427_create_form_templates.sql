@@ -24,8 +24,8 @@ for insert
 to authenticated
 with check (auth.uid() = created_by);
 
-create policy "Users can delete own templates"
+create policy "Users can delete all templates"
 on public.form_templates
 for delete
 to authenticated
-using (auth.uid() = created_by);
+using (true);
