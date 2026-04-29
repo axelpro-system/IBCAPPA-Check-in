@@ -12,11 +12,11 @@ create table if not exists public.form_templates (
 
 alter table public.form_templates enable row level security;
 
-create policy "Users can read own templates"
+create policy "Users can read all templates"
 on public.form_templates
 for select
 to authenticated
-using (auth.uid() = created_by);
+using (true);
 
 create policy "Users can insert own templates"
 on public.form_templates
